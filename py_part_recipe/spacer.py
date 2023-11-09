@@ -21,12 +21,12 @@ class BlockChunk:
 
 @dataclass
 class ChunkableSpace:
-    size_in_blocks: int
+    nb_block: int
     block_size: int
 
     @property
     def size_in_octets(self):
-        return self.size_in_blocks * self.block_size
+        return self.nb_block * self.block_size
 
 
 def optimal_size(size: int, block_size: int, upward: bool = True) -> int:
@@ -76,7 +76,7 @@ def has_minmun_space(block_space: ChunkableSpace, chunks: List[BlockChunk]) -> b
         optimal_size(chunk.min_size, block_space.block_size) for chunk in chunks
     ]
     minimal_space = sum(chunks_sizes)
-    return block_space.block_size * block_space.size_in_blocks >= minimal_space
+    return block_space.block_size * block_space.nb_block >= minimal_space
 
 
 def qualify_chunks(

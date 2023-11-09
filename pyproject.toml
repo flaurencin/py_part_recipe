@@ -8,7 +8,8 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.10"
-pyparted = "^3.12.0"
+pyparted = {url = "https://github.com/dcantrell/pyparted/releases/download/v3.13.0/pyparted-3.13.0.tar.gz"}
+pyyaml = "^6.0.1"
 
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.1.2"

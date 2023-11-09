@@ -23,4 +23,19 @@ You can run that command to install libated and libparted-dev
 > ```
 
 
+## For Developpers based systems
 
+### environment to run the tests
+
+To run the test you should have loop devices available, loop100, loop101
+
+To create then you can in your home favorite directory create two files the following way:
+
+> ``` bash
+>  dd if=/dev/zero of=./loop100 bs=4096 count=10000
+>  dd if=/dev/zero of=./loop101 bs=4096 count=10000
+>  sudo losetup /dev/loop100 ./loop100 
+>  sudo losetup /dev/loop101 ./loop101
+>  sudo chown $USER /dev/loop100
+>  sudo chown $USER /dev/loop101
+> ```
