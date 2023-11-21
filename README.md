@@ -27,15 +27,22 @@ You can run that command to install libated and libparted-dev
 
 ### environment to run the tests
 
-To run the test you should have loop devices available, loop100, loop101
+To run the test you should have loop devices available, loop100, loop101 etc.
+To create then you can run the pretest.sh script:
 
-To create then you can in your home favorite directory create two files the following way:
-
-> ``` bash
->  dd if=/dev/zero of=./loop100 bs=4096 count=10000
->  dd if=/dev/zero of=./loop101 bs=4096 count=10000
->  sudo losetup /dev/loop100 ./loop100 
->  sudo losetup /dev/loop101 ./loop101
->  sudo chown $USER /dev/loop100
->  sudo chown $USER /dev/loop101
+> ```$ bash pretest.sh
+> Package util-linux installed........................................................................[OK]
+> Package mdadm installed.............................................................................[OK]
+> Package lvm2 installed..............................................................................[OK]
+> Package python3 installed...........................................................................[OK]
+> User is member of disk group........................................................................[OK]
+> Test Devices Created................................................................................[OK]
+> 
+> Let's get sure you can run some commands using sudo with no password.
+> Privileged commands.................................................................................[OK]
+> Entering venv.......................................................................................[OK]
+> Pip is up to date...................................................................................[OK]
+> 
+> Let's make poetry.
+> Depency installation................................................................................[OK]
 > ```
