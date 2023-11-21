@@ -3,13 +3,13 @@ import os
 from dataclasses import dataclass, asdict, field
 import json
 from string import digits
-from typing import Any, Dict, List, Union
+from typing import Dict, List, Union
 import parted
 from parted import Disk, DiskException
 import yaml
 from py_part_recipe.spacer import BlockChunk, ChunkableSpace, qualify_chunks
 from logging import getLogger
-from parted import __exponents, _ped
+from parted import __exponents
 
 LOGGER = getLogger()
 PARTITION_NAME_TO_P = {value: key for key, value in parted.partitions.items()}
@@ -368,7 +368,7 @@ class Partitionner:
         return self.__repr__()
 
 
-class MultiPartitionner:
+class HandledPartitions:
     def __init__(self, partitionners: List[Partitionner]) -> None:
         self.partitionners = partitionners
         self.created = False
@@ -395,7 +395,7 @@ class MultiPartitionner:
         self.saved = True
         self.committed_to_os = True
 
-    def get_partitions_by_handle(self, handle: str) -> List[parted.partitions]:
+    def get_partitions_by_handle(self, handle: str) -> List[parted.Partition]:
         partitions: List[parted.partitions] = []
         for partitionner in self.partitionners:
             if handle in partitionner.created_parttions_by_handle:
