@@ -26,11 +26,15 @@ function display_service_status {
 
 
 echo -n > /tmp/pretest.log
-
-for tool in util-linux mdadm lvm2 python3
+packages=("util-linux" "mdadm" "lvm2" "python3" "dosfstools" "e2fsprogs" \
+          "btrfs-progs" "zfsutils-linux" "ecryptfs-utils" "cifs-utils" \
+          "hfsprogs" "xfsprogs" "exfatprogs" "reiserfsprogs" "libparted-dev"\
+          "libparted-fs-resize0" "libparted2" )
+for tool in ${packages[@]}
     do 
-        pkg=$(dpkg -l | grep -c "ii  ${tool} ")
+        pkg=$(dpkg -l | grep -Ec "^\s*ii  ${tool}(:\w+)* ")
         if [ "$pkg" == "0" ]; then
+            printf "  adding package ${tool}\n"
             sudo apt install $tool -y 
         fi
         display_service_status "Package $tool installed" $?
