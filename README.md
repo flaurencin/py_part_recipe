@@ -27,22 +27,41 @@ You can run that command to install libated and libparted-dev
 
 ### environment to run the tests
 
-To run the test you should have loop devices available, loop100, loop101 etc.
-To create then you can run the pretest.sh script:
+To run the test you should have loop devices available, loop100, loop101 and have packages etc.
+to avoid the hustle to have to configure it all manually a script exists.
+this script expects you to have temporary folder in /tmp and sudo privileges on you developpement workstation, under debian or ubuntu.
 
-> ```$ bash pretest.sh
-> Package util-linux installed........................................................................[OK]
-> Package mdadm installed.............................................................................[OK]
-> Package lvm2 installed..............................................................................[OK]
-> Package python3 installed...........................................................................[OK]
-> User is member of disk group........................................................................[OK]
-> Test Devices Created................................................................................[OK]
+You miht be prompted for your sudo password to ensure package installation or file creations.
+
+To set it all up you can run the pretest.sh script:
+
+> ```
+> prompt$ bash pretest.sh 
+> Package util-linux installed.........................................[OK]
+> Package mdadm installed..............................................[OK]
+> Package lvm2 installed...............................................[OK]
+> Package python3 installed............................................[OK]
+> Package dosfstools installed.........................................[OK]
+> Package e2fsprogs installed..........................................[OK]
+> Package btrfs-progs installed........................................[OK]
+> Package zfsutils-linux installed.....................................[OK]
+> Package ecryptfs-utils installed.....................................[OK]
+> Package cifs-utils installed.........................................[OK]
+> Package hfsprogs installed...........................................[OK]
+> Package xfsprogs installed...........................................[OK]
+> Package exfatprogs installed.........................................[OK]
+> Package reiserfsprogs installed......................................[OK]
+> Package libparted-dev installed......................................[OK]
+> Package libparted-fs-resize0 installed...............................[OK]
+> Package libparted2 installed.........................................[OK]
+> User is member of disk group.........................................[OK]
+> Test Devices Created.................................................[OK]
 > 
 > Let's get sure you can run some commands using sudo with no password.
-> Privileged commands.................................................................................[OK]
-> Entering venv.......................................................................................[OK]
-> Pip is up to date...................................................................................[OK]
+> Privileged commands..................................................[OK]
+> Entering venv........................................................[OK]
+> Pip is up to date....................................................[OK]
 > 
 > Let's make poetry.
-> Depency installation................................................................................[OK]
+> Depency installation.................................................[OK]
 > ```
