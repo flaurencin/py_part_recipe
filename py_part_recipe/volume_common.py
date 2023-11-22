@@ -152,10 +152,10 @@ class RaidVolume(PartitionBasedVolume):
                 f"wrong number of devices for raid {self.raid_level} "
                 f"expected 4 got {len(self.dev_indices)}"
             )
-        elif self.raid_level in (4, 5, 6):
+        elif self.raid_level in (4, 5, 6) and len(self.dev_indices) < 3:
             raise ValueError(
                 f"wrong number of devices for raid {self.raid_level} "
-                f"expected > 3 got {len(self.dev_indices)}"
+                f"expected >= 3 got {len(self.dev_indices)}"
             )
         devs_set = set(self.dev_indices)
         spares_set = set(self.spare_indices)
