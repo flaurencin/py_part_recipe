@@ -1,5 +1,7 @@
 import logging
+import os
 import subprocess
+from time import sleep
 from typing import List
 import pytest
 from py_part_recipe.partition_common import (
@@ -35,6 +37,20 @@ def setup_raid_disk(disks: List[str]) -> Partitionner:
             [0, 1],
             [2],
             1,
+            ["efi_part", "boot_part", "root_part", "var_part"],
+        ),
+        (
+            ["/dev/loop100", "/dev/loop101", "/dev/loop102", "/dev/loop103"],
+            [0, 1, 2],
+            [3],
+            5,
+            ["efi_part", "boot_part", "root_part", "var_part"],
+        ),
+        (
+            ["/dev/loop100", "/dev/loop101", "/dev/loop102"],
+            [0, 1, 2],
+            [],
+            5,
             ["efi_part", "boot_part", "root_part", "var_part"],
         ),
     ),
@@ -80,10 +96,13 @@ def test_BlockDevice_on_clean_drive(
         raid_volume.build()
         assert raid_volume.built
     for index, handle in enumerate(handles):
-        subprocess.run(["sudo", "mdadm", "-S", f"/dev/md{100+index}"])
-    for handle in handle:
+        subprocess.run(["sudo", "mdadm", "--stop", "--force", f"/dev/md{100+index}"])
         parts: List[Partition] = list(
             handled_parts.partitionners[0].created_parttions_by_handle[handle]
         )
         parts_paths = [part.path for part in parts]
         subprocess.run(["sudo", "mdadm", "--zero-superblock"] + parts_paths)
+        if os.path.exists(f"/dev/md{100+index}"):
+            subprocess.run(
+                ["sudo", "mdadm", "--stop", "--force", f"/dev/md{100+index}"]
+            )
