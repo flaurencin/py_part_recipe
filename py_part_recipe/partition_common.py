@@ -378,6 +378,7 @@ class HandledPartitions:
     def create_partitions_mapping(self):
         for part in self.partitionners:
             part.create_partitions_mapping()
+        self.created = True
 
     def commit_to_devices(self):
         for part in self.partitionners:

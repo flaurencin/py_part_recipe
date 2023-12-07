@@ -57,11 +57,11 @@ fi
 for block_dev in loop100 loop101 loop102 loop103 loop104; do
     if [ ! -e "/dev/$block_dev" ]; then
     printf "building test block device /dev/$block_dev from /tmp/$block_dev\n"
-    dd if=/dev/zero of=tmp/$block_dev bs=4096 count=10000 && \
+    dd if=/dev/zero of=/tmp/$block_dev bs=4096 count=10000 && \
     losetup /dev/$block_dev /tmp/$block_dev
     fi
+    display_service_status "Test Devices $block_dev Created" $?
 done
-display_service_status "Test Devices Created" $?
 
 
 if [ ! -x ".venv" ]; then 
@@ -70,10 +70,25 @@ if [ ! -x ".venv" ]; then
 fi
 
 printf "\nLet\'s get sure you can run some commands using sudo with no password.\n"
-test_cmds_count=$(sudo -l | grep -cE '\(ALL\) NOPASSWD: /usr/sbin/mdadm|\(ALL\) NOPASSWD: /usr/bin/partx')
-if [ $test_cmds_count -lt 2 ]; then
-    echo $USER 'ALL=(ALL) NOPASSWD:' $(which mdadm) | sudo tee /etc/sudoers.d/py_part_recipe > /dev/null && \
-    echo $USER 'ALL=(ALL) NOPASSWD:' $(which partx) | sudo tee -a /etc/sudoers.d/py_part_recipe > /dev/null
+test_cmds_count=$(sudo -l | grep -cE '\(ALL\) NOPASSWD: ')
+if [ $test_cmds_count -lt 14 ]; then
+cat << _EOF | sudo tee /etc/sudoers.d/py_part_recipe > /dev/null
+$USER ALL=(ALL) NOPASSWD: $(which mdadm)
+$USER ALL=(ALL) NOPASSWD: $(which partx)
+$USER ALL=(ALL) NOPASSWD: $(which pvs)
+$USER ALL=(ALL) NOPASSWD: $(which pvdisplay)
+$USER ALL=(ALL) NOPASSWD: $(which pvcreate)
+$USER ALL=(ALL) NOPASSWD: $(which vgcreate)
+$USER ALL=(ALL) NOPASSWD: $(which vgs)
+$USER ALL=(ALL) NOPASSWD: $(which vgdisplay)
+$USER ALL=(ALL) NOPASSWD: $(which lvcreate)
+$USER ALL=(ALL) NOPASSWD: $(which lvs)
+$USER ALL=(ALL) NOPASSWD: $(which lvdisplay)
+$USER ALL=(ALL) NOPASSWD: $(which pvremove)
+$USER ALL=(ALL) NOPASSWD: $(which vgremove)
+$USER ALL=(ALL) NOPASSWD: $(which lvremove)
+_EOF
+
 fi
 display_service_status "Privileged commands" $?
 
