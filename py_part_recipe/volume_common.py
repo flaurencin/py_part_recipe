@@ -19,7 +19,7 @@ class Volume(ABC):
 
     @property
     @abstractmethod
-    def volume_dev(self) -> str:
+    def sys_device(self) -> str:
         ...
 
     @property
@@ -43,7 +43,7 @@ class HandledVolumes:
 
     @property
     def handle_to_dev(self) -> Dict[str, str]:
-        return {handle: vol.volume_dev for handle, vol in self.volumes.items()}
+        return {handle: vol.sys_device for handle, vol in self.volumes.items()}
 
     def build(self):
         for volume in self.volumes.values():
@@ -146,7 +146,7 @@ class RawVolume(PartitionBasedVolume):
         return self._built
 
     @property
-    def volume_dev(self) -> str:
+    def sys_device(self) -> str:
         return self.partition.path
 
 
@@ -296,7 +296,7 @@ class RaidVolume(PartitionBasedVolume):
         return self._built
 
     @property
-    def volume_dev(self) -> str:
+    def sys_device(self) -> str:
         return self.raid_dev_name
 
 
@@ -345,7 +345,7 @@ class LvmVgVolume(MulitMixedVolume):
         ]
         devices.extend(
             [
-                vol.volume_dev
+                vol.sys_device
                 for vol in self.handled_vols.get_by_handles(self.volumes_handles)
             ]
         )
@@ -368,7 +368,7 @@ class LvmVgVolume(MulitMixedVolume):
         return self._built
 
     @property
-    def volume_dev(self) -> str:
+    def sys_device(self) -> str:
         if not self.vg_dev:
             raise RuntimeError("Lvm VG not built yet")
         return self.vg_dev
@@ -391,7 +391,7 @@ class LvmLvVolume(VolumeBasedVolume):
         self._built = False
 
     def _vg_has_enough_space(self, vol: Volume) -> Tuple[bool, float]:
-        available_percent_command = f"vgdisplay -c {vol.volume_dev}"
+        available_percent_command = f"vgdisplay -c {vol.sys_device}"
         available_percent_cmd = subprocess.run(
             gen_cmd_for_subprocess(available_percent_command), capture_output=True
         )
@@ -418,17 +418,17 @@ class LvmLvVolume(VolumeBasedVolume):
                 f"available, {self.vg_percent:.0f}% requested."
             )
         command = (
-            f"lvcreate -l {round(self.vg_percent)}%VG -n {self.handle} {vol.volume_dev}"
+            f"lvcreate -l {round(self.vg_percent)}%VG -n {self.handle} {vol.sys_device}"
         )
         cmd = subprocess.run(gen_cmd_for_subprocess(command), capture_output=True)
         if cmd.returncode != 0:
             error = cmd.stderr.decode("utf-8").replace("\n", " -> ")
             raise RuntimeError(
                 f"Lvm: Logical Volume creation of {self.handle} on "
-                f"vg {vol.volume_dev} Failed. Error: {error}"
+                f"vg {vol.sys_device} Failed. Error: {error}"
             )
         self._built = True
-        self.lv_dev = f"{vol.volume_dev}/{self.handle}"
+        self.lv_dev = f"{vol.sys_device}/{self.handle}"
         self.handled_vols._add_volume(self)
 
     @property
@@ -436,7 +436,7 @@ class LvmLvVolume(VolumeBasedVolume):
         return self._built
 
     @property
-    def volume_dev(self) -> str:
+    def sys_device(self) -> str:
         if not self.lv_dev:
             raise RuntimeError("Lvm VG not built yet")
         return self.lv_dev
