@@ -19,6 +19,7 @@ import os
 import re
 import shlex
 import subprocess
+import tempfile
 from typing import Any, Iterable
 
 import parted
@@ -88,6 +89,114 @@ def _check_dmsetup(args: list, origin: str):
             )
 
 
+def _under_temp(path: str) -> bool:
+    """Is the path inside the temporary directory (and not the directory)?"""
+    temp = os.path.realpath(tempfile.gettempdir())
+    return os.path.realpath(path).startswith(temp + os.sep)
+
+
+def _program(args: list) -> tuple[str, list]:
+    """The program run and its arguments, not looking at sudo."""
+    position = 0
+    if args and os.path.basename(args[0]) == "sudo":
+        position = 1
+        while position < len(args) and args[position].startswith("-"):
+            position += 1
+    if position >= len(args):
+        return "", []
+    return os.path.basename(args[position]), args[position + 1 :]
+
+
+# options of mount that take a value, which is not a source nor a target
+MOUNT_OPTIONS_WITH_VALUE = ("-t", "-o", "--types", "--options")
+BIND_OPTIONS = ("--bind", "-B", "--rbind")
+MOUNT_FORBIDDEN_OPTIONS = ("-a", "--all", "-l", "--lazy", "-f", "--force")
+
+
+def _positionals(args: list, with_value: tuple = ()) -> list:
+    result = []
+    skip = False
+    for arg in args:
+        if skip:
+            skip = False
+        elif arg in with_value:
+            skip = True
+        elif not arg.startswith("-"):
+            result.append(arg)
+    return result
+
+
+def _resolve_uuid(uuid: str, origin: str) -> str:
+    result = subprocess.run(["blkid", "-U", uuid], capture_output=True, check=False)
+    device = result.stdout.decode("utf-8").strip()
+    if result.returncode != 0 or not device:
+        raise DeviceGuardError(
+            f"{origin}: refusing to mount UUID={uuid}, no device has this uuid so it "
+            "can not be checked to be a test device"
+        )
+    return device
+
+
+def _check_mounts(args: list, origin: str):
+    """Tests may only mount test devices, inside the temporary directory.
+
+    Mounting is the one thing a test could do to a directory of the system:
+    a mount point outside the temporary directory is refused, a bind mount can
+    only bind a directory of the temporary directory (a bind of /dev left
+    behind would be walked into when the temporary directory is cleaned up),
+    and what is mounted is a test device, found by its uuid when given so.
+    """
+    program, rest = _program(args)
+    if program == "mkdir":
+        for path in _positionals(rest):
+            if not _under_temp(path):
+                raise DeviceGuardError(
+                    f"{origin}: refusing to create {path}, tests may only create "
+                    "directories inside the temporary directory"
+                )
+    elif program == "umount":
+        for option in rest:
+            if option in MOUNT_FORBIDDEN_OPTIONS or option in ("-R", "-A"):
+                raise DeviceGuardError(f"{origin}: umount {option} is not allowed")
+        for path in _positionals(rest):
+            if not (path.startswith("/dev/") or _under_temp(path)):
+                raise DeviceGuardError(
+                    f"{origin}: refusing to unmount {path}, tests may only unmount "
+                    "what is inside the temporary directory"
+                )
+    elif program == "mount":
+        for option in rest:
+            if option in MOUNT_FORBIDDEN_OPTIONS:
+                raise DeviceGuardError(f"{origin}: mount {option} is not allowed")
+        positionals = _positionals(rest, MOUNT_OPTIONS_WITH_VALUE)
+        if len(positionals) != 2:
+            raise DeviceGuardError(
+                f"{origin}: mount needs a source and a target (an fstab entry or "
+                f"a listing is not allowed in tests), got {positionals}"
+            )
+        source, target = positionals
+        if not _under_temp(target):
+            raise DeviceGuardError(
+                f"{origin}: refusing to mount on {target}, tests may only mount "
+                "inside the temporary directory"
+            )
+        if any(option in BIND_OPTIONS for option in rest):
+            if not _under_temp(source):
+                raise DeviceGuardError(
+                    f"{origin}: refusing to bind {source}, tests may only bind a "
+                    "directory of the temporary directory"
+                )
+        elif source.startswith("UUID="):
+            check_device_path(_resolve_uuid(source[5:], origin), origin)
+        elif source.startswith("/dev/"):
+            check_device_path(source, origin)
+        elif source != "tmpfs":
+            raise DeviceGuardError(
+                f"{origin}: refusing to mount {source}, tests may only mount a "
+                "test device by path or by uuid, or tmpfs"
+            )
+
+
 def _check_command(args: Any, shell: bool, origin: str):
     if isinstance(args, (str, bytes, os.PathLike)):
         args = shlex.split(os.fsdecode(args)) if shell else [args]
@@ -96,6 +205,7 @@ def _check_command(args: Any, shell: bool, origin: str):
         for arg in args
     ]
     _check_dmsetup(args, origin)
+    _check_mounts(args, origin)
     for arg in args:
         # options like --device=/dev/sda are checked too
         check_device_path(arg, origin)

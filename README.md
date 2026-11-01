@@ -446,6 +446,13 @@ The tests destroy the devices they use, so they are guarded
   anything else raises an error before anything happens. The real commands
   still run, only their arguments are checked.
 
+- Mounting is checked too: `mount`, `umount` and `mkdir` may only work inside
+  the temporary directory, a bind mount can only bind a directory of the
+  temporary directory (a bind of `/dev` left behind would be walked into when
+  the temporary directory is cleaned up, so the tests bind fake directories),
+  a device mounted by UUID must be a test device, and `mount` without a source
+  and a target (an fstab entry), `-a`, `umount -a/-l/-f` are refused.
+
 When writing a test that needs another device name, extend the allowed names
 in `tests/device_guard.py` on purpose.
 
