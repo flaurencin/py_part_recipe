@@ -7,8 +7,9 @@ applies it with `libparted`, `mdadm`, LVM tools and `mkfs.*`.
 > **Status: early development (v0.1.0).** The building blocks (partition sizing,
 > partitioning, wiping, RAID, LVM, formatting, the report) exist and are tested,
 > a recipe file can be read and validated (`load_recipe`) and applied
-> (`apply_recipe`), which returns the report. There is **no command line yet**.
-> See [Project status](#project-status).
+> (`apply_recipe`), which returns the report, and there is a [command
+> line](#command-line) to validate, apply and print an fstab. Mounting is not
+> written yet. See [Project status](#project-status).
 
 > **Warning:** this software repartitions and formats block devices. Wrong
 > input destroys data. Use it on disposable disks or loop devices until it
@@ -233,6 +234,40 @@ wants to act between them; `run()` does them all.
 built`, `file systems formatted`). See
 [Responsibility and failure handling](#responsibility-and-failure-handling).
 
+## Command line
+
+```bash
+uv run py-part-recipe validate recipe.yml
+sudo uv run py-part-recipe apply recipe.yml --output report.yml
+uv run py-part-recipe fstab report.yml > fstab
+```
+
+(`python -m py_part_recipe …` does the same.)
+
+| Command | Does |
+|---|---|
+| `validate RECIPE` | Reads the recipe and lists **every** problem found. Touches no disk, needs no privileges. |
+| `apply RECIPE` | Applies the recipe and writes the report. Asks for confirmation after listing the disks it will change, unless `--yes` is given. `--format yaml\|json` and `--output FILE` choose the format (by default from the extension of the file, else yaml) and where it goes (by default the standard output). |
+| `fstab REPORT` | Prints the fstab of a report written by `apply`, the file systems named by UUID. A file system without UUID is left out with a warning. |
+
+What a command produces goes to the standard output (the report, the fstab);
+questions, summaries, errors and warnings go to the standard error, so
+`apply recipe.yml --yes > report.yml` and `fstab report.yml > fstab` work as
+expected. `apply` checks that the report can be written *before* changing any
+disk, and if writing it fails afterwards it prints it on the standard output
+instead of losing it.
+
+Exit codes, so that a script can tell what happened:
+
+| Code | Meaning |
+|---|---|
+| 0 | done |
+| 1 | the recipe or report is not valid, or a file cannot be read or written |
+| 2 | applying failed: **nothing is undone**, the message says the stage and what was already changed |
+| 3 | not applied, the confirmation was not given |
+| 64 | wrong command line |
+| 130 | interrupted while applying: the state of the disks is unknown |
+
 ## The report
 
 Once a recipe is applied, the system itself is read to describe what exists:
@@ -417,14 +452,16 @@ Done:
 - Reading and validating a recipe file (`recipe_loader.py`)
 - Applying a recipe, stage by stage, with a report of what exists
   (`applier.py`)
+- The command line: `validate`, `apply` and `fstab` (`cli.py`)
 - The report (yaml/json, validation, fstab rendering) built from the system:
   partitions, RAID/LVM volumes and file systems with their UUIDs
 
 Not yet done (see `examples/example_recipe.yml` for the intended format):
 - Other file systems (`f2fs`, `zfs`, HFS, APFS, …)
 - Dry run, teardown, and resize operations
-- The command line: `apply`, `mount`, `umount` and `fstab`, and the code
-  behind `mount` and `umount`
+- Mounting: the `mount` and `umount` commands (mount the report's file systems
+  under a directory such as `/target`, with the bind mounts for a chroot) and
+  the code behind them
 
 Out of scope by design: activating swap, mounting while a recipe is applied
 (it is the separate `mount` command), and rolling back a failed run (see
