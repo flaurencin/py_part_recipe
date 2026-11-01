@@ -7,8 +7,7 @@ from typing import Dict, List, Type, Union
 from py_part_recipe.common import gen_cmd_for_subprocess
 
 
-class FormatError(Exception):
-    ...
+class FormatError(Exception): ...
 
 
 supported: Dict[str, Type["FsOps"]] = {}
