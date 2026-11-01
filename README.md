@@ -6,9 +6,8 @@ applies it with `libparted`, `mdadm`, LVM tools and `mkfs.*`.
 
 > **Status: early development (v0.1.0).** The building blocks (partition sizing,
 > partitioning, wiping, RAID, LVM, formatting, the report) exist and are tested,
-> and a recipe file can be read and validated (`load_recipe`). There is **no
-> CLI and no applier yet**: the recipe in `examples/example_recipe.yml` shows the
-> format, but applying it still means driving the Python classes directly.
+> a recipe file can be read and validated (`load_recipe`) and applied
+> (`apply_recipe`), which returns the report. There is **no command line yet**.
 > See [Project status](#project-status).
 
 > **Warning:** this software repartitions and formats block devices. Wrong
@@ -21,7 +20,7 @@ applies it with `libparted`, `mdadm`, LVM tools and `mkfs.*`.
   logical partitions that go with them, are not supported.
 - **Two steps.** A recipe is first *parsed and validated* without touching any
   disk (`recipe_loader.py`, see [Writing a recipe](#writing-a-recipe)), then
-  *applied* (not written yet, see [Project status](#project-status)).
+  *applied* (`applier.py`, see [Applying a recipe](#applying-a-recipe)).
 - **Applying never mounts anything, and swap is never activated.** The tool
   lays out and formats storage and writes a [report](#the-report). Mounting
   will be a separate command reading that report, with the mount points of the
@@ -93,9 +92,18 @@ everything is erased as much as possible:
    `HandledPartitions.wipe_partitions()`: it erases the old signatures that the
    previous layout left inside the new partitions.
 
-Volumes built on freshly wiped partitions start clean, so they need no wipe of
-their own. `wipe` can not be combined with `keep_partitions`. A mounted file
-system is not unmounted: the device is busy and wiping fails.
+3. **When the volumes are created**, the RAID arrays and logical volumes built
+   (even indirectly) on the partitions of a wiping group are wiped too. Wiping
+   the partitions is not enough: when the same layout is created again, the
+   data of an array starts at the same place of its partitions, so what the
+   previous array held there, such as an LVM physical volume, shows up in the
+   new one. A RAID array gets its signatures erased once created, and
+   `lvcreate` is told to wipe and zero (`--yes --wipesignatures y --zero y`).
+   The `wipe` argument of `RaidVolume` and `LvmLvVolume` does this; the applier
+   sets it.
+
+`wipe` can not be combined with `keep_partitions`. A mounted file system is not
+unmounted: the device is busy and wiping fails.
 
 ### Volumes
 
@@ -190,6 +198,40 @@ with the list in `.errors`. It checks that:
 
 What depends on the disks, such as having enough space, can only be checked
 when the recipe is applied.
+
+## Applying a recipe
+
+```python
+from py_part_recipe.applier import apply_recipe
+from py_part_recipe.recipe_loader import load_recipe
+
+report = apply_recipe(load_recipe("recipe.yml"))   # needs root or sudo
+print(report.dumps("yaml"))
+print(report.fstab())
+```
+
+The stages run in this order, each one needs the previous:
+
+1. **`partitioning`**: the disks are wiped if asked, partitioned (one table per
+   disk), the kernel is told about the new partitions, and the old signatures
+   left inside them are wiped if asked.
+2. **`volumes`**: raw, RAID and LVM volumes are created in the order of the
+   recipe.
+3. **`file_systems`**: the volumes that are not `format: false` are formatted.
+4. **`report`**: the system is read to describe what was created.
+
+Nothing is written until every group of disks is known to be possible: the
+disks must exist and be block devices, and the partitions must fit. The
+volumes are all checked against the partitions before the first one is built.
+
+`Applier(recipe)` runs the same stages one at a time (`partition()`,
+`build_volumes()`, `format_file_systems()`, `build_report()`) for a caller who
+wants to act between them; `run()` does them all.
+
+**When a stage fails, nothing is undone.** `ApplyError` has the `stage`, the
+`cause` and `created`, what was already changed (`disks modified`, `volumes
+built`, `file systems formatted`). See
+[Responsibility and failure handling](#responsibility-and-failure-handling).
 
 ## The report
 
@@ -373,14 +415,16 @@ Done:
 - ext2/3/4, FAT16/32, xfs, btrfs, exFAT, NTFS and swap (`mkswap`) formatting
 - Optional wiping of disks and partitions
 - Reading and validating a recipe file (`recipe_loader.py`)
+- Applying a recipe, stage by stage, with a report of what exists
+  (`applier.py`)
 - The report (yaml/json, validation, fstab rendering) built from the system:
   partitions, RAID/LVM volumes and file systems with their UUIDs
 
 Not yet done (see `examples/example_recipe.yml` for the intended format):
 - Other file systems (`f2fs`, `zfs`, HFS, APFS, …)
 - Dry run, teardown, and resize operations
-- Applying a recipe: running the stages in order and writing the report
-- The command line: `apply`, `mount`, `umount` and `fstab`
+- The command line: `apply`, `mount`, `umount` and `fstab`, and the code
+  behind `mount` and `umount`
 
 Out of scope by design: activating swap, mounting while a recipe is applied
 (it is the separate `mount` command), and rolling back a failed run (see
