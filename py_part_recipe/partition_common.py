@@ -98,11 +98,9 @@ def convert_size_to_bytes(size: str):
             if char not in excluded_chars:
                 return index
 
-    size = str(size)
+    size = str(size).strip().replace(" ", "")
     if size.isnumeric():
         return int(size)
-    size = size.strip()
-    size = size.replace(" ", "")
     unit_position = index_first_char_not_in(size, digits)
     unit = size[unit_position:]
     if unit not in __exponents:
@@ -111,7 +109,9 @@ def convert_size_to_bytes(size: str):
         )
     quantity_str = size[:unit_position]
     if not quantity_str.isnumeric():
-        raise (f"Size ({size}) quantity of Unit {unit} does not seem to be a number")
+        raise ValueError(
+            f"Size ({size}) quantity of Unit {unit} does not seem to be a number"
+        )
     quantity = int(quantity_str)
     return quantity * __exponents[unit]
 

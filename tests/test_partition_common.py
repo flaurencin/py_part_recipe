@@ -107,6 +107,8 @@ def test_BlockDevice_on_used_drive(
         ("5 MB", 5_000_000),
         ("5kB ", 5_000),
         (" 5MiB", 5_242_880),
+        (" 5 ", 5),
+        ("5", 5),
     ),
 )
 def test_convert_size_to_bytes(
@@ -122,11 +124,14 @@ def test_convert_size_to_bytes(
         ("M5MB", 5_000_000),
         ("5KB", 5_000),
         ("5iMiB", 5_242_880),
+        ("MiB", 0),
+        ("", 0),
+        ("5.5MiB", 0),
     ),
 )
 def test_raise_convert_size_to_bytes(
-    size: Literal["M5MB", "5KB", "5iMiB"],
-    expected_bytes: Literal[5000000, 5000, 5242880],
+    size: str,
+    expected_bytes: int,
 ):
     with pytest.raises(ValueError):
         convert_size_to_bytes(size)
