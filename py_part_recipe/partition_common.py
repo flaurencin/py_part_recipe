@@ -8,6 +8,7 @@ import parted
 from parted import Disk, DiskException
 import yaml
 from py_part_recipe.spacer import BlockChunk, ChunkableSpace, qualify_chunks
+from py_part_recipe.wipe import wipe_disk, wipe_signatures
 from logging import getLogger
 from parted import __exponents
 
@@ -230,8 +231,14 @@ class Recipe:
     common_partition_type: Union[None, str] = field(init=False, default=None)
     common_space: int = field(init=False, default=0)
     keep_partitions: bool = False
+    # erase everything on the disks, see wipe.py, off by default
+    wipe: bool = False
 
     def __post_init__(self):
+        if self.wipe and self.keep_partitions:
+            raise ValueError(
+                "wipe erases the disks, it can not be used with keep_partitions"
+            )
         self.devices = [
             BlockDevice(dev_name, self.keep_partitions)
             for dev_name in self.devices_names
@@ -331,7 +338,26 @@ class Partitionner:
                 for flag in part_req.flags:
                     partition.setFlag(flag)
 
+    def _wipe_disks(self):
+        """Erase the old layout, just before the new one is written."""
+        if self.recipe.wipe:
+            for device in self.recipe.devices:
+                wipe_disk(device.path)
+
+    def wipe_partitions(self):
+        """Erase signatures left inside the new partitions by the old layout.
+
+        The kernel must know the new partitions, call it after commit_to_os
+        (or after telling the kernel with partx). Does nothing unless the
+        recipe asks to wipe.
+        """
+        if self.recipe.wipe:
+            for partitions in self.created_partitions_per_dev.values():
+                for partition in partitions:
+                    wipe_signatures(partition.path)
+
     def commit_to_devices(self):
+        self._wipe_disks()
         for disk in self.disks:
             disk.commitToDevice()
 
@@ -340,6 +366,7 @@ class Partitionner:
             disk.commitToOS()
 
     def commit(self):
+        self._wipe_disks()
         for disk in self.disks:
             disk.commit()
 
@@ -383,6 +410,14 @@ class HandledPartitions:
         for part in self.partitionners:
             part.commit_to_os()
         self.committed_to_os = True
+
+    def wipe_partitions(self):
+        """Erase old signatures inside the new partitions (if the recipes wipe).
+
+        Call it once the kernel knows the new partitions.
+        """
+        for part in self.partitionners:
+            part.wipe_partitions()
 
     def commit(self):
         for part in self.partitionners:
