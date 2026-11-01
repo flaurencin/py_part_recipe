@@ -86,9 +86,21 @@ handle (one per disk, in device order) are active members and spares.
 
 ### File systems
 
-Implemented formatters (`fs.py`): `ext2`, `ext3`, `ext4` (`mkfs.ext*`, block
-size 1024/2048/4096, label truncated to 16 chars) and `fat16`, `fat32`
-(`mkfs.fat`, label sanitised to 11 chars).
+Formatters live in `fs.py`:
+
+| `type` | Command | Label limit | Notes |
+|---|---|---|---|
+| `ext2`, `ext3`, `ext4` | `mkfs.ext*` | 16 bytes | block size 1024, 2048 or 4096 |
+| `fat16`, `fat32` | `mkfs.fat` | 11 | characters not allowed in a FAT label become `_` |
+| `xfs` | `mkfs.xfs -f` | 12 bytes | needs a device of about 300 MB or more |
+| `btrfs` | `mkfs.btrfs -f` | 254 bytes | needs a device of about 110 MB or more |
+| `exfat` | `mkfs.exfat` | 11 characters | |
+| `ntfs` | `mkfs.ntfs -Q -F` | 128 characters | quick format |
+| `swap` | `mkswap` | 15 bytes | formatted only, never activated |
+
+Labels may contain spaces, they are cut to the limit of the file system, and
+default to the device name. Formatting replaces whatever is on the device:
+`xfs`, `btrfs` and `ntfs` are forced over an existing file system.
 
 ## Responsibility and failure handling
 
@@ -123,7 +135,7 @@ Debian/Ubuntu:
 
 ```bash
 sudo apt-get install -y build-essential libparted-dev mdadm lvm2 \
-    e2fsprogs dosfstools python3-dev
+    e2fsprogs dosfstools xfsprogs btrfs-progs exfatprogs ntfs-3g python3-dev
 ```
 
 ## Installation
@@ -163,9 +175,11 @@ md0.build()
 
 ### Test environment
 
-The tests operate on real loop devices (`/dev/loop100`…), so they need root
-privileges and system packages. `pretest.sh` sets this up on Debian/Ubuntu: it
-installs packages, creates the loop devices, checks passwordless sudo and
+The tests operate on real loop devices (`/dev/loop100`…`/dev/loop106`), so
+they need root privileges and system packages. `pretest.sh` sets this up on
+Debian/Ubuntu: it installs packages, creates the loop devices (sparse files in
+`/tmp`; `/dev/loop106` is 512 MB so `xfs` and `btrfs` can be formatted, and
+it is grown if it already exists), allows the needed commands in sudoers and
 builds the Poetry environment.
 
 ```bash
@@ -187,11 +201,11 @@ Done:
 - Weighted partition sizing with block alignment
 - GPT partitioning on multiple identical disks, optional keep-existing mode
 - Raw, RAID and LVM (VG/LV) volumes
-- ext2/3/4 and FAT16/32 formatting
+- ext2/3/4, FAT16/32, xfs, btrfs, exFAT, NTFS and swap (`mkswap`) formatting
 
 Not yet done (see `examples/example_recipe.yml` for the intended format):
 - YAML recipe parsing/validation and a CLI entry point
-- Other file systems (`xfs`, `btrfs`, …) and formatting swap space (`mkswap`)
+- Other file systems (`f2fs`, `zfs`, HFS, APFS, …)
 - Dry run, teardown, and resize operations
 
 Out of scope by design: mounting file systems, activating swap, and rolling
