@@ -1,67 +1,163 @@
 # py_part_recipe
-A partition manager based on yaml recipe for linux
 
+Declarative disk layout for Linux. You describe partitions, volumes (RAID, LVM)
+and file systems in a YAML *recipe*, and the library computes the layout and
+applies it with `libparted`, `mdadm`, LVM tools and `mkfs.*`.
 
-## installing from source prerequisits
+> **Status: early development (v0.1.0).** The building blocks (partition sizing,
+> partitioning, RAID, LVM, ext/FAT formatting) exist and are tested. There is
+> **no CLI and no YAML loader yet**: the recipe in `examples/example_recipe.yml`
+> shows the target format, but today you drive the Python classes directly.
+> See [Project status](#project-status).
 
-Ensure you have compilation tools available.
-Ensure library liparted and libparted-devel are installed.
+> **Warning:** this software repartitions and formats block devices. Wrong
+> input destroys data. Use it on disposable disks or loop devices until it
+> matures.
 
-### For Debian based systems
+## Concepts
 
-You can run this command to ensure you have build tools
+A recipe has three layers, each referencing the previous one by **handle** (a
+unique name matching `^[a-zA-Z0-9_-]+$`):
 
-> ``` bash
-> sudo apt-get install -y make build-essential libssl-dev zlib1g-dev \
-> libbz2-dev libreadline-dev libsqlite3-dev wget curl llvm libncurses5-dev \
-> libncursesw5-dev xz-utils tk-dev libffi-dev liblzma-dev python-openssl
-> ```
+| Layer | Purpose | Implemented in |
+|---|---|---|
+| `partitioning` | Which devices get which partitions (sizes, flags, type) | `partition_common.py`, `spacer.py` |
+| `volumes` | What is built on partitions: raw, RAID, LVM VG/LV | `volume_common.py` |
+| `file_systems` | What is formatted on volumes, and where it mounts | `fs.py` (formatting only) |
 
-You can run that command to install libated and libparted-dev
-> ``` bash
-> sudo apt-get install -y libarted libparted-dev
-> ```
+### Partitioning
 
+Each group of devices shares one list of partition requests, so identical
+layouts can be created on several disks (typically RAID members).
 
-## For Developpers based systems
+```yaml
+partitioning:
+  - devices: [/dev/loop100, /dev/loop101]
+    recipe:
+      keep_partitions:        # true: add to free space instead of wiping
+      partitions:
+        - handle: partitions_boot
+          min_size: 20 MiB
+          max_size: 200 MiB
+          weight: 500
+          p_type: normal
+          flags: ["raid"]
+```
 
-### environment to run the tests
+- **Sizes** accept bytes or a unit (`B, kB, MB … KiB, MiB, GiB …`).
+- **Sizing algorithm** (`spacer.py`): every partition gets its `max_size` if
+  everything fits. Otherwise each starts at `min_size` and the remaining
+  space is shared in proportion to `weight × (max_size − min_size)`. All sizes
+  are aligned to the device block size.
+- **Common space**: for a group of devices, the smallest usable space and the
+  largest sector size are used so all disks get identical geometry.
+- **Reserved areas**: the first 2048 sectors and last 33 sectors are not used.
+  With `keep_partitions`, the largest free region is used instead.
+- **Partition table**: `gpt` (default) or `msdos`.
+- **Flags**: any `libparted` flag by name (`raid`, `boot`, `swap`, `esp`, …).
 
-To run the test you should have loop devices available, loop100, loop101 and have packages etc.
-to avoid the hustle to have to configure it all manually a script exists.
-this script expects you to have temporary folder in /tmp and sudo privileges on you developpement workstation, under debian or ubuntu.
+### Volumes
 
-You miht be prompted for your sudo password to ensure package installation or file creations.
+| `type` | Class | Notes |
+|---|---|---|
+| `raw` | `RawVolume` | Uses a single partition as is |
+| `raid` | `RaidVolume` | `mdadm --create`; levels 0, 1, 4, 5, 6, 10; spares; metadata `0`, `0.90`, `1`, `1.0`, `1.2` |
+| `volume_group` | `LvmVgVolume` | `vgcreate` named after the handle, over partitions and/or other volumes |
+| `logical_volume` | `LvmLvVolume` | `lvcreate -l N%VG` on a volume group |
 
-To set it all up you can run the pretest.sh script:
+RAID `dev_indices` / `spare_indices` select which of the partitions sharing a
+handle (one per disk, in device order) are active members and spares.
 
-> ```
-> prompt$ bash pretest.sh 
-> Package util-linux installed.........................................[OK]
-> Package mdadm installed..............................................[OK]
-> Package lvm2 installed...............................................[OK]
-> Package python3 installed............................................[OK]
-> Package dosfstools installed.........................................[OK]
-> Package e2fsprogs installed..........................................[OK]
-> Package btrfs-progs installed........................................[OK]
-> Package zfsutils-linux installed.....................................[OK]
-> Package ecryptfs-utils installed.....................................[OK]
-> Package cifs-utils installed.........................................[OK]
-> Package hfsprogs installed...........................................[OK]
-> Package xfsprogs installed...........................................[OK]
-> Package exfatprogs installed.........................................[OK]
-> Package reiserfsprogs installed......................................[OK]
-> Package libparted-dev installed......................................[OK]
-> Package libparted-fs-resize0 installed...............................[OK]
-> Package libparted2 installed.........................................[OK]
-> User is member of disk group.........................................[OK]
-> Test Devices Created.................................................[OK]
-> 
-> Let's get sure you can run some commands using sudo with no password.
-> Privileged commands..................................................[OK]
-> Entering venv........................................................[OK]
-> Pip is up to date....................................................[OK]
-> 
-> Let's make poetry.
-> Depency installation.................................................[OK]
-> ```
+### File systems
+
+Implemented formatters (`fs.py`): `ext2`, `ext3`, `ext4` (`mkfs.ext*`, block
+size 1024/2048/4096, label truncated to 16 chars) and `fat16`, `fat32`
+(`mkfs.fat`, label sanitised to 11 chars).
+
+## Requirements
+
+- Linux, Python ≥ 3.9 (the code uses `X | None` annotations, so effectively
+  ≥ 3.10).
+- Root, or passwordless `sudo`: external commands are prefixed with `sudo`
+  when not run as root.
+- `libparted` and its headers (to build `pyparted`), plus the tools for the
+  features you use: `mdadm`, `lvm2`, `e2fsprogs`, `dosfstools`.
+
+Debian/Ubuntu:
+
+```bash
+sudo apt-get install -y build-essential libparted-dev mdadm lvm2 \
+    e2fsprogs dosfstools python3-dev
+```
+
+## Installation
+
+```bash
+poetry install
+```
+
+`pyparted` is pulled from its GitHub release tarball (v3.13.0) and compiled
+locally.
+
+## Usage (Python API)
+
+```python
+from py_part_recipe.partition_common import (
+    PartitionRequest, Recipe, Partitionner, HandledPartitions,
+)
+from py_part_recipe.volume_common import HandledVolumes, RaidVolume
+
+reqs = [PartitionRequest(handle="parts_md0", min_size="20 MiB",
+                         max_size="200 MiB", weight=100, flags=["raid"])]
+recipe = Recipe(devices_names=["/dev/loop100", "/dev/loop101"],
+                part_requests=reqs)
+
+parts = HandledPartitions([Partitionner(recipe, table_type="gpt")])
+parts.create_partitions_mapping()   # compute and stage in memory
+print(parts)                        # review the planned layout
+parts.commit()                      # write tables + notify the kernel
+
+md0 = RaidVolume(partitionners=parts, partitions_handle="parts_md0",
+                 handle="volume_md0", raid_dev_name="/dev/md30",
+                 level=1, dev_indices=[0, 1])
+md0.build()
+```
+
+## Development
+
+### Test environment
+
+The tests operate on real loop devices (`/dev/loop100`…), so they need root
+privileges and system packages. `pretest.sh` sets this up on Debian/Ubuntu: it
+installs packages, creates the loop devices, checks passwordless sudo and
+builds the Poetry environment.
+
+```bash
+bash pretest.sh
+```
+
+Then:
+
+```bash
+poetry run pytest
+```
+
+Tests cover the sizing algorithm, device detection, partitioning (flush and
+keep modes), and RAID/LVM volume creation. Lint/format with `ruff` and `black`.
+
+## Project status
+
+Done:
+- Weighted partition sizing with block alignment
+- GPT/msdos partitioning on multiple identical disks, optional keep-existing mode
+- Raw, RAID and LVM (VG/LV) volumes
+- ext2/3/4 and FAT16/32 formatting
+
+Not yet done (see `examples/example_recipe.yml` for the intended format):
+- YAML recipe parsing/validation and a CLI entry point
+- Mounting, swap, and other file systems (`xfs`, `btrfs`, …) listed in `pretest.sh`
+- Dry-run/rollback, teardown, and resize operations
+
+## License
+
+MIT, see `LICENSE`.
