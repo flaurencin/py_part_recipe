@@ -2,13 +2,15 @@ from collections import defaultdict
 import os
 from dataclasses import dataclass, asdict, field
 import json
+import subprocess
 from string import digits
 from typing import Dict, List, Union
 import parted
-from parted import Disk, DiskException
+from parted import Disk, DiskException, IOException
 import yaml
+from py_part_recipe.common import gen_cmd_for_subprocess
 from py_part_recipe.spacer import BlockChunk, ChunkableSpace, qualify_chunks
-from py_part_recipe.wipe import wipe_disk, wipe_signatures
+from py_part_recipe.wipe import settle, wipe_disk, wipe_signatures
 from logging import getLogger
 from parted import __exponents
 
@@ -411,6 +413,36 @@ class HandledPartitions:
     def commit_to_os(self):
         for part in self.partitionners:
             part.commit_to_os()
+        self.committed_to_os = True
+
+    def notify_kernel(self):
+        """Make the kernel know the new partitions, and wait for their devices.
+
+        Parted does it directly when the program is root, `partx` (with sudo
+        when needed) is always run too so the partitions are known either way.
+
+        Raises:
+            IOError: the kernel could not be told about some disks
+        """
+        try:
+            self.commit_to_os()
+        except IOException:
+            LOGGER.warning(
+                "Notifying the system directly failed. "
+                "Program is probably not running as root. "
+                "Attempting with sudo partx."
+            )
+        failed = []
+        for partitionner in self.partitionners:
+            for disk in partitionner.disks:
+                command = gen_cmd_for_subprocess(["partx", "-u", disk.device.path])
+                if subprocess.run(command, capture_output=True).returncode != 0:
+                    failed.append(disk.device.path)
+        if failed:
+            raise IOError(
+                f"The kernel could not be notified of the partitions of {', '.join(failed)}"
+            )
+        settle()
         self.committed_to_os = True
 
     def wipe_partitions(self):

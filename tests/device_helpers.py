@@ -1,36 +1,16 @@
 """Helpers shared by the tests working on the test loop devices."""
 
-import logging
+import re
 import subprocess
 
-from parted import IOException
-
 from py_part_recipe.partition_common import HandledPartitions
-
-LOGGER = logging.getLogger()
 
 
 def make_parts(handled_parts: HandledPartitions):
     """Write the partitions and tell the kernel about them."""
     handled_parts.create_partitions_mapping()
     handled_parts.commit_to_devices()
-    try:
-        handled_parts.commit_to_os()
-    except IOException:
-        LOGGER.warning(
-            "Notifying the system directly failed. "
-            "Program is probably not running as root. "
-            "Attempting with sudo partx."
-        )
-    results = [
-        subprocess.run(["sudo", "partx", "-u", disk.device.path], capture_output=True)
-        for parter in handled_parts.partitionners
-        for disk in parter.disks
-    ]
-    successes = [result.returncode == 0 for result in results]
-    if not all(successes):
-        raise IOError("Some modification on disks could not be notified to kernel")
-    handled_parts.committed_to_os = True
+    handled_parts.notify_kernel()
 
 
 def signatures(device: str) -> dict[str, str]:
@@ -61,3 +41,10 @@ def write_at(device: str, offset: int, data: bytes):
     with open(device, "r+b") as dev:
         dev.seek(offset)
         dev.write(data)
+
+
+def ext_uuid(device: str) -> str:
+    out = subprocess.run(["dumpe2fs", "-h", device], capture_output=True, check=True)
+    match = re.search(r"Filesystem UUID:\s*(\S+)", out.stdout.decode("utf-8"))
+    assert match, f"no uuid in dumpe2fs of {device}"
+    return match.group(1)

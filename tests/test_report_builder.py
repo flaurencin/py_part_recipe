@@ -4,7 +4,7 @@ import subprocess
 
 import pytest
 from device_guard import ensure_vg_absent
-from device_helpers import make_parts
+from device_helpers import ext_uuid, make_parts
 
 from py_part_recipe.fs import supported
 from py_part_recipe.partition_common import (
@@ -33,13 +33,6 @@ MIB = 1024 * 1024
 
 
 # ----- reading the same values with other tools than the code under test
-
-
-def ext_uuid(device: str) -> str:
-    out = subprocess.run(["dumpe2fs", "-h", device], capture_output=True, check=True)
-    match = re.search(r"Filesystem UUID:\s*(\S+)", out.stdout.decode("utf-8"))
-    assert match, f"no uuid in dumpe2fs of {device}"
-    return match.group(1)
 
 
 def partition_uuid(disk: str, number: int) -> str:
