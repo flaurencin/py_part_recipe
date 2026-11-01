@@ -390,6 +390,71 @@ before they are run, a missing one is reported when it is first needed.
 
 ## Installation
 
+### On the system that partitions: pip, no uv needed
+
+The package is a normal wheel, `py_part_recipe-<version>-py3-none-any.whl`: pure
+Python, any Python 3.10 or newer. It installs the `py-part-recipe` command, the
+`py_part_recipe` module, and the example recipes in
+`<prefix>/share/py-part-recipe/examples/`.
+
+```bash
+python3 -m venv /opt/py-part-recipe        # Debian/Ubuntu: apt install python3-venv
+/opt/py-part-recipe/bin/pip install -U pip wheel
+/opt/py-part-recipe/bin/pip install py_part_recipe-0.1.0-py3-none-any.whl
+sudo /opt/py-part-recipe/bin/py-part-recipe --help
+```
+
+Use a virtual environment (or `pipx`): recent Debian and Ubuntu refuse `pip
+install` in the system Python (PEP 668). Run the command with its full path,
+`root` does not have the environment's `bin` in its `PATH`.
+
+`pyparted` has no wheel on PyPI: `pip` **compiles it** when it installs. That
+needs, on that system, a C compiler, the Python headers and the `libparted`
+headers (`apt-get install gcc python3-dev libparted-dev`), the tools of the
+[requirements](#requirements), and access to PyPI.
+
+#### Without a compiler or network: build the wheels once
+
+On a machine of the same architecture and the same Python minor version (3.10,
+3.12...) as the target, with the build requirements above, collect every wheel
+the package needs:
+
+```bash
+python3 -m venv build && build/bin/pip install -U pip wheel
+build/bin/pip wheel py_part_recipe-0.1.0-py3-none-any.whl -w wheelhouse
+```
+
+`wheelhouse/` now holds our wheel, `PyYAML` and a compiled `pyparted`
+(`...cp310-linux_x86_64.whl`). Copy it to the target and install from it only:
+
+```bash
+python3 -m venv /opt/py-part-recipe
+/opt/py-part-recipe/bin/pip install --no-index --only-binary :all: \
+    --find-links wheelhouse py-part-recipe
+```
+
+The target only needs `libparted` at run time (`libparted2`, `libparted2t64`
+on Ubuntu 24.04) and the tools of the [requirements](#requirements). The
+compiled wheel is tied to the Python version and the CPU architecture it was
+built for.
+
+The `python3-parted` package of Debian and Ubuntu can replace the compiled
+wheel, but it is older (3.12.0 on Ubuntu 24.04) than the 3.13.0 this package is
+developed and tested with, so that route is not tested.
+
+#### Building the wheel
+
+On the development machine (this is where `uv` is used, not on the target):
+
+```bash
+uv build            # or: python -m build
+```
+
+writes `dist/py_part_recipe-<version>.tar.gz` and the wheel. The version is the
+`version` line of `pyproject.toml`. Nothing is published anywhere.
+
+### Development environment: uv
+
 ```bash
 uv sync
 ```
