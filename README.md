@@ -5,9 +5,10 @@ and file systems in a YAML *recipe*, and the library computes the layout and
 applies it with `libparted`, `mdadm`, LVM tools and `mkfs.*`.
 
 > **Status: early development (v0.1.0).** The building blocks (partition sizing,
-> partitioning, RAID, LVM, ext/FAT formatting) exist and are tested. There is
-> **no CLI and no YAML loader yet**: the recipe in `examples/example_recipe.yml`
-> shows the target format, but today you drive the Python classes directly.
+> partitioning, wiping, RAID, LVM, formatting, the report) exist and are tested,
+> and a recipe file can be read and validated (`load_recipe`). There is **no
+> CLI and no applier yet**: the recipe in `examples/example_recipe.yml` shows the
+> format, but applying it still means driving the Python classes directly.
 > See [Project status](#project-status).
 
 > **Warning:** this software repartitions and formats block devices. Wrong
@@ -19,12 +20,14 @@ applies it with `libparted`, `mdadm`, LVM tools and `mkfs.*`.
 - **GPT only.** This is a modern tool: MBR/msdos tables, and the extended and
   logical partitions that go with them, are not supported.
 - **Two steps.** A recipe is first *parsed and validated* without touching any
-  disk, then *applied*. (The loader is not written yet, see
-  [Project status](#project-status).)
-- **It never mounts anything and never activates swap.** The tool lays out and
-  formats storage. The `mount` / `install_mount` fields of `file_systems` are
-  information for a system deployment tool, which does the mounting. Swap
-  space can be formatted (`mkswap`) but is never activated (`swapon`).
+  disk (`recipe_loader.py`, see [Writing a recipe](#writing-a-recipe)), then
+  *applied* (not written yet, see [Project status](#project-status)).
+- **Applying never mounts anything, and swap is never activated.** The tool
+  lays out and formats storage and writes a [report](#the-report). Mounting
+  will be a separate command reading that report, with the mount points of the
+  recipe (`/`, `/boot`, …) placed under a directory chosen at that time
+  (`/target`). Swap space can be formatted (`mkswap`) but never activated
+  (`swapon`).
 - **`format: false` leaves the volume untouched**, for example when a
   partition already holds data.
 
@@ -37,7 +40,7 @@ unique name matching `^[a-zA-Z0-9_-]+$`):
 |---|---|---|
 | `partitioning` | Which devices get which partitions (sizes, flags, type) | `partition_common.py`, `spacer.py` |
 | `volumes` | What is built on partitions: raw, RAID, LVM VG/LV | `volume_common.py` |
-| `file_systems` | What is formatted on volumes, and where it mounts | `fs.py` (formatting only) |
+| `file_systems` | What is formatted on volumes, and its mount point in the installed system | `fs.py` (formatting) |
 
 ### Partitioning
 
@@ -123,6 +126,70 @@ Formatters live in `fs.py`:
 Labels may contain spaces, they are cut to the limit of the file system, and
 default to the device name. Formatting replaces whatever is on the device:
 `xfs`, `btrfs` and `ntfs` are forced over an existing file system.
+
+## Writing a recipe
+
+```yaml
+partitioning:                  # see "Partitioning"
+  - devices: [/dev/sda, /dev/sdb]
+    recipe:
+      wipe: false              # optional, see "Wiping"
+      keep_partitions: false   # optional
+      partitions:
+        - {handle: raid_boot, min_size: 512 MiB, max_size: 1 GiB, weight: 10,
+           flags: [raid]}       # p_type is optional, always normal
+volumes:                       # in the order they are built
+  - handle: md_boot
+    type: raid
+    params:
+      partitions_handle: raid_boot
+      level: 1
+      dev_indices: [0, 1]
+      raid_dev_name: /dev/md0
+file_systems:
+  - type: ext4
+    volume_handle: md_boot
+    mount: /boot               # mount point in the installed system
+```
+
+Volume `params` by `type`:
+
+| `type` | `params` |
+|---|---|
+| `raw` | `partitions_handle`: partitions of a handle created on one disk only |
+| `raid` | `partitions_handle`, `level` (0, 1, 4, 5, 6, 10), `dev_indices`, `raid_dev_name` (`/dev/mdN`); optional `spare_indices`, `meta_data` (`"0"`, `"0.90"`, `"1"`, `"1.0"`, `"1.2"`, default `"1.2"`; quote it: `0.90` is read as a number) |
+| `volume_group` | `partitions_handles` and/or `volumes_handles`; the volume group is named after the handle of the volume |
+| `logical_volume` | `volume_handle` of a volume group, `vg_percent` (more than 0, at most 100) |
+
+File systems: `type` (see [File systems](#file-systems)), `volume_handle`, and
+optionally `format` (default `true`; `false` leaves the volume alone), `label`
+(only when formatting), `mount`, `mount_options` (default `defaults`, `sw` for
+swap) and `fsck_pass` (0, 1 or 2; by default 1 for `/` then 2 for ext and FAT
+file systems, 0 for the others). A swap has no `mount`.
+
+`load_recipe(path)` (or `loads_recipe(text)`) reads a recipe and returns typed
+objects; nothing is read from the disks. **Every problem found is reported at
+once**, each with its place (`volumes[2].params.level: …`), as a `RecipeError`
+with the list in `.errors`. It checks that:
+
+- keys are known and present, and values have the right type;
+- sizes, flags and handles are valid, `min_size` is above 0 and not above
+  `max_size`, `weight` is at least 1, and `wipe` is not used with
+  `keep_partitions`;
+- a device is in one group only, and a partitions handle is not used twice;
+- volumes only use partitions handles and volumes that exist, **defined
+  before them** in the list;
+- each partition and each volume is used once: by one volume, or one volume
+  group, or one file system (a volume group is shared by its logical
+  volumes, whose sizes add up to at most 100%);
+- RAID devices and spares fit the level and the number of disks of the
+  partitions handle, and RAID device names are unique;
+- a file system is on a raw, RAID or logical volume that nothing else uses,
+  there is one per volume, mount points are absolute and unique, and swap has
+  none.
+
+What depends on the disks, such as having enough space, can only be checked
+when the recipe is applied.
 
 ## The report
 
@@ -305,17 +372,19 @@ Done:
 - Raw, RAID and LVM (VG/LV) volumes
 - ext2/3/4, FAT16/32, xfs, btrfs, exFAT, NTFS and swap (`mkswap`) formatting
 - Optional wiping of disks and partitions
+- Reading and validating a recipe file (`recipe_loader.py`)
 - The report (yaml/json, validation, fstab rendering) built from the system:
   partitions, RAID/LVM volumes and file systems with their UUIDs
 
 Not yet done (see `examples/example_recipe.yml` for the intended format):
 - Other file systems (`f2fs`, `zfs`, HFS, APFS, …)
 - Dry run, teardown, and resize operations
-- YAML recipe parsing and validation
+- Applying a recipe: running the stages in order and writing the report
 - The command line: `apply`, `mount`, `umount` and `fstab`
 
-Out of scope by design: mounting file systems, activating swap, and rolling
-back a failed run (see below).
+Out of scope by design: activating swap, mounting while a recipe is applied
+(it is the separate `mount` command), and rolling back a failed run (see
+below).
 
 ## License
 
