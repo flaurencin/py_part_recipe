@@ -13,6 +13,7 @@ from samples import DISKS, RECIPE, sample_report
 from py_part_recipe.cli import (
     EXIT_APPLY_FAILED,
     EXIT_INVALID,
+    EXIT_MOUNT_FAILED,
     EXIT_NOT_CONFIRMED,
     EXIT_OK,
     EXIT_USAGE,
@@ -333,3 +334,143 @@ def test_installed_command():
     assert command.exists(), "run uv sync to install the command"
     result = subprocess.run([str(command), "validate", EXAMPLE], capture_output=True)
     assert result.returncode == 0
+
+
+# ----- mount and umount
+
+
+def sample_report_file(tmp_path, report=None) -> str:
+    path = tmp_path / "report.yml"
+    path.write_text((report or sample_report()).dumps("yaml"))
+    return str(path)
+
+
+@pytest.mark.parametrize(
+    "argv",
+    (
+        ["mount", "report.yml"],
+        ["umount", "report.yml"],
+        ["mount", "--root", "/target"],
+        ["umount", "--root", "/target"],
+        ["umount", "report.yml", "--root", "/target", "--bind-system"],
+    ),
+)
+def test_mount_wrong_command_line(capsys, argv):
+    code, out, err = run(capsys, *argv)
+    assert code == EXIT_USAGE and out == "" and "error:" in err
+
+
+@pytest.mark.parametrize("command", ("mount", "umount"))
+def test_mount_help(capsys, command):
+    code, out, _ = run(capsys, command, "--help")
+    assert code == EXIT_OK and "--root" in out
+
+
+@pytest.mark.parametrize("command", ("mount", "umount"))
+def test_mount_unreadable_report(capsys, tmp_path, command):
+    code, out, err = run(
+        capsys, command, str(tmp_path / "missing.yml"), "--root", str(tmp_path)
+    )
+    assert code == EXIT_INVALID and out == "" and "cannot read" in err
+
+
+@pytest.mark.parametrize("command", ("mount", "umount"))
+def test_mount_invalid_report(capsys, tmp_path, command):
+    data = sample_report().to_dict()
+    data["file_systems"][0]["volume"] = "nowhere"
+    code, out, err = run(
+        capsys, command, write_yaml(tmp_path, data), "--root", str(tmp_path / "t")
+    )
+    assert code == EXIT_INVALID and out == "" and "nowhere" in err
+
+
+@pytest.mark.parametrize("command", ("mount", "umount"))
+def test_mount_never_on_the_root_of_the_system(capsys, tmp_path, command):
+    code, out, err = run(capsys, command, sample_report_file(tmp_path), "--root", "/")
+    assert code == EXIT_MOUNT_FAILED and out == ""
+    assert "Refusing to use /" in err
+
+
+def test_mount_a_file_system_without_uuid_mounts_nothing(capsys, tmp_path):
+    report = sample_report()
+    report.file_systems[3].uuid = None
+    root = tmp_path / "target"
+    code, out, err = run(
+        capsys, "mount", sample_report_file(tmp_path, report), "--root", str(root)
+    )
+    assert code == EXIT_MOUNT_FAILED and out == ""
+    assert "no UUID" in err and "Nothing was mounted" in err
+    assert not root.exists()
+
+
+def test_mount_where_something_is_mounted(capsys, tmp_path):
+    code, out, err = run(
+        capsys, "mount", sample_report_file(tmp_path), "--root", "/proc"
+    )
+    assert code == EXIT_MOUNT_FAILED and out == ""
+    assert "/proc is already mounted" in err
+
+
+def test_umount_what_is_not_mounted(capsys, tmp_path):
+    root = str(tmp_path / "target")
+    code, out, err = run(capsys, "umount", sample_report_file(tmp_path), "--root", root)
+    assert code == EXIT_OK and err == ""
+    lines = out.splitlines()
+    assert len(lines) == 4 + 5  # the file systems and the host
+    assert all(line.startswith("not mounted ") for line in lines)
+    assert lines[0] == f"not mounted {root}/run"  # the last mounted comes first
+
+
+def test_mount_and_umount_commands(capsys, applied, tmp_path):
+    report, root = applied
+    path = sample_report_file(tmp_path, report)
+
+    code, out, err = run(capsys, "mount", path, "--root", root)
+
+    assert code == EXIT_OK and err == ""
+    assert out.splitlines() == [
+        f"mounted {root}",
+        f"mounted {root}/boot",
+        f"mounted {root}/home",
+    ]
+
+    code, out, err = run(capsys, "mount", path, "--root", root)
+    assert code == EXIT_MOUNT_FAILED and out == ""
+    assert "already mounted" in err
+
+    code, out, err = run(capsys, "umount", path, "--root", root)
+
+    assert code == EXIT_OK and err == ""
+    lines = out.splitlines()
+    assert lines[:3] == [
+        f"unmounted {root}/home",
+        f"unmounted {root}/boot",
+        f"unmounted {root}",
+    ]
+    assert len(lines) == 3 + 5 and all(
+        line.startswith("not mounted ") for line in lines[3:]
+    )
+
+    code, out, err = run(capsys, "umount", path, "--root", root)
+    assert code == EXIT_OK and len(out.splitlines()) == 8
+
+
+def test_umount_command_reports_what_is_busy(capsys, applied, tmp_path):
+    import subprocess
+
+    report, root = applied
+    path = sample_report_file(tmp_path, report)
+    assert run(capsys, "mount", path, "--root", root)[0] == EXIT_OK
+    busy = f"{root}/boot/busy"
+    subprocess.run(["sudo", "mkdir", "-p", busy], check=True)
+    subprocess.run(["sudo", "mount", "-t", "tmpfs", "tmpfs", busy], check=True)
+    try:
+        code, out, err = run(capsys, "umount", path, "--root", root)
+    finally:
+        subprocess.run(["sudo", "umount", busy], check=False)
+
+    assert code == EXIT_MOUNT_FAILED
+    assert f"unmounted {root}/home" in out
+    assert "Could not unmount 2 mount point(s)" in err
+    assert f"Still mounted: {root}/boot, {root}" in err
+    assert run(capsys, "umount", path, "--root", root)[0] == EXIT_OK

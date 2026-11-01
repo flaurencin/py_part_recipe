@@ -8,8 +8,8 @@ applies it with `libparted`, `mdadm`, LVM tools and `mkfs.*`.
 > partitioning, wiping, RAID, LVM, formatting, the report) exist and are tested,
 > a recipe file can be read and validated (`load_recipe`) and applied
 > (`apply_recipe`), which returns the report, and there is a [command
-> line](#command-line) to validate, apply and print an fstab. Mounting is not
-> written yet. See [Project status](#project-status).
+> line](#command-line) to validate, apply, print an fstab, and mount and
+> unmount the result under a directory. See [Project status](#project-status).
 
 > **Warning:** this software repartitions and formats block devices. Wrong
 > input destroys data. Use it on disposable disks or loop devices until it
@@ -24,7 +24,7 @@ applies it with `libparted`, `mdadm`, LVM tools and `mkfs.*`.
   *applied* (`applier.py`, see [Applying a recipe](#applying-a-recipe)).
 - **Applying never mounts anything, and swap is never activated.** The tool
   lays out and formats storage and writes a [report](#the-report). Mounting
-  will be a separate command reading that report, with the mount points of the
+  is a separate command reading that report, with the mount points of the
   recipe (`/`, `/boot`, …) placed under a directory chosen at that time
   (`/target`). Swap space can be formatted (`mkswap`) but never activated
   (`swapon`).
@@ -243,6 +243,8 @@ built`, `file systems formatted`). See
 uv run py-part-recipe validate recipe.yml
 sudo uv run py-part-recipe apply recipe.yml --output report.yml
 uv run py-part-recipe fstab report.yml > fstab
+sudo uv run py-part-recipe mount report.yml --root /target --bind-system
+sudo uv run py-part-recipe umount report.yml --root /target
 ```
 
 (`python -m py_part_recipe …` does the same.)
@@ -252,6 +254,21 @@ uv run py-part-recipe fstab report.yml > fstab
 | `validate RECIPE` | Reads the recipe and lists **every** problem found. Touches no disk, needs no privileges. |
 | `apply RECIPE` | Applies the recipe and writes the report. Asks for confirmation after listing the disks it will change, unless `--yes` is given. `--format yaml\|json` and `--output FILE` choose the format (by default from the extension of the file, else yaml) and where it goes (by default the standard output). |
 | `fstab REPORT` | Prints the fstab of a report written by `apply`, the file systems named by UUID. A file system without UUID is left out with a warning. |
+| `mount REPORT --root DIR` | Mounts the file systems of the report under `DIR` (a mount point `/boot` goes to `DIR/boot`), by UUID, from the shortest mount point to the longest so a parent comes before its children. Directories are created. Swap is not activated. `--bind-system` then binds `/dev`, `/dev/pts`, `/proc`, `/sys` and `/run` of this system under `DIR`, for a chroot. |
+| `umount REPORT --root DIR` | Unmounts what `mount` did, the last one mounted first: the bind mounts, then the file systems. |
+
+`mount` refuses `/` as the root, and refuses to start if something is already
+mounted at or under it. A file system that must be mounted but has no UUID
+stops it **before** the first mount: skipping it could mount its children over
+the directories of this system. It stops at the first failure and **unmounts
+nothing**; the error lists what is mounted.
+
+`umount` does the opposite: it tries **every** mount point even when one fails,
+because leaving the bind mounts of `/dev` in place is the worst outcome. What
+is not mounted is skipped, so it can be run twice. Nothing is forced or
+detached lazily: a busy mount point stays mounted and is reported, with the
+list of what is still mounted. Do not delete the directory (`rm -r /target`)
+while the bind mounts are in place: it would delete the files of `/dev`.
 
 What a command produces goes to the standard output (the report, the fstab);
 questions, summaries, errors and warnings go to the standard error, so
@@ -268,6 +285,7 @@ Exit codes, so that a script can tell what happened:
 | 1 | the recipe or report is not valid, or a file cannot be read or written |
 | 2 | applying failed: **nothing is undone**, the message says the stage and what was already changed |
 | 3 | not applied, the confirmation was not given |
+| 4 | mounting or unmounting failed: what is mounted, or still mounted, is listed |
 | 64 | wrong command line |
 | 130 | interrupted while applying: the state of the disks is unknown |
 
@@ -470,16 +488,14 @@ Done:
 - Reading and validating a recipe file (`recipe_loader.py`)
 - Applying a recipe, stage by stage, with a report of what exists
   (`applier.py`)
-- The command line: `validate`, `apply` and `fstab` (`cli.py`)
+- The command line: `validate`, `apply`, `fstab`, `mount` and `umount`
+  (`cli.py`, mounting in `mounting.py`)
 - The report (yaml/json, validation, fstab rendering) built from the system:
   partitions, RAID/LVM volumes and file systems with their UUIDs
 
 Not yet done (see `examples/example_recipe.yml` for the intended format):
 - Other file systems (`f2fs`, `zfs`, HFS, APFS, …)
 - Dry run, teardown, and resize operations
-- Mounting: the `mount` and `umount` commands (mount the report's file systems
-  under a directory such as `/target`, with the bind mounts for a chroot) and
-  the code behind them
 
 Out of scope by design: activating swap, mounting while a recipe is applied
 (it is the separate `mount` command), and rolling back a failed run (see

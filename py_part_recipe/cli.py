@@ -3,6 +3,8 @@
     py-part-recipe validate recipe.yml
     py-part-recipe apply recipe.yml [--yes] [--format yaml|json] [--output FILE]
     py-part-recipe fstab report.yml
+    py-part-recipe mount report.yml --root /target [--bind-system]
+    py-part-recipe umount report.yml --root /target
 
 What a command produces goes to stdout (the report, the fstab), everything
 else (questions, summaries, errors, warnings) goes to stderr, so the output
@@ -15,6 +17,7 @@ Exit codes:
     2    applying the recipe failed: nothing is undone, the error says what
          was already changed
     3    not applied: the confirmation was not given
+    4    mounting or unmounting failed: what is still mounted is listed
     64   wrong command line
     130  interrupted while applying: the state of the disks is not known
 """
@@ -25,6 +28,7 @@ import os
 import sys
 
 from py_part_recipe.applier import ApplyError, apply_recipe
+from py_part_recipe.mounting import MountError, UmountError, mount_all, umount_all
 from py_part_recipe.recipe_loader import RecipeError, RecipeSpec, load_recipe
 from py_part_recipe.report import Report, ReportError
 
@@ -32,6 +36,7 @@ EXIT_OK = 0
 EXIT_INVALID = 1
 EXIT_APPLY_FAILED = 2
 EXIT_NOT_CONFIRMED = 3
+EXIT_MOUNT_FAILED = 4
 EXIT_USAGE = 64
 EXIT_INTERRUPTED = 130
 
@@ -100,6 +105,46 @@ def _build_parser() -> argparse.ArgumentParser:
         "the file systems are named by UUID.",
     )
     fstab.add_argument("report", help="the report, a yaml or json file")
+
+    mount = commands.add_parser(
+        "mount",
+        help="mount the file systems of a report under a directory",
+        description="Mount the file systems of the report written by apply "
+        "under ROOT, by UUID, from the shortest mount point to the longest "
+        "(/target, /target/boot...). Swap is not activated. Stops at the first "
+        "failure and unmounts nothing. Needs root or sudo.",
+    )
+    mount.add_argument("report", help="the report, a yaml or json file")
+    mount.add_argument(
+        "-r",
+        "--root",
+        required=True,
+        metavar="DIR",
+        help="the directory to mount under, like /target",
+    )
+    mount.add_argument(
+        "--bind-system",
+        action="store_true",
+        help="also bind /dev, /dev/pts, /proc, /sys and /run of this system "
+        "under ROOT, what a chroot needs",
+    )
+
+    umount = commands.add_parser(
+        "umount",
+        help="unmount what mount mounted",
+        description="Unmount the bind mounts and the file systems of the "
+        "report under ROOT, the last mounted first. What is not mounted is "
+        "skipped. Every mount point is tried even if one fails (busy...), "
+        "nothing is forced. Needs root or sudo.",
+    )
+    umount.add_argument("report", help="the report, a yaml or json file")
+    umount.add_argument(
+        "-r",
+        "--root",
+        required=True,
+        metavar="DIR",
+        help="the directory the file systems were mounted under",
+    )
     return parser
 
 
@@ -210,22 +255,74 @@ def _apply(args) -> int:
 # ----- fstab
 
 
-def _fstab(args) -> int:
+def _read_report(path: str) -> Report | None:
+    """The report, or None after telling why it can not be used."""
     try:
-        report = Report.load(args.report)
+        return Report.load(path)
     except ReportError as error:
-        _error(f"{args.report} is not a valid report, {len(error.errors)} problem(s):")
+        _error(f"{path} is not a valid report, {len(error.errors)} problem(s):")
         for problem in error.errors:
             print(f"  - {problem}", file=sys.stderr)
-        return EXIT_INVALID
     except OSError as error:
-        _error(f"cannot read {args.report}: {error.strerror or error}")
+        _error(f"cannot read {path}: {error.strerror or error}")
+    return None
+
+
+def _fstab(args) -> int:
+    report = _read_report(args.report)
+    if report is None:
         return EXIT_INVALID
     sys.stdout.write(report.fstab())
     return EXIT_OK
 
 
-COMMANDS = {"validate": _validate, "apply": _apply, "fstab": _fstab}
+# ----- mount and umount
+
+
+def _mount(args) -> int:
+    report = _read_report(args.report)
+    if report is None:
+        return EXIT_INVALID
+    try:
+        mounted = mount_all(report, args.root, bind_system=args.bind_system)
+    except MountError as error:
+        _error(str(error))
+        return EXIT_MOUNT_FAILED
+    for target in mounted:
+        print(f"mounted {target}")
+    return EXIT_OK
+
+
+def _umount(args) -> int:
+    report = _read_report(args.report)
+    if report is None:
+        return EXIT_INVALID
+    try:
+        result = umount_all(report, args.root)
+    except MountError as error:  # the root is /
+        _error(str(error))
+        return EXIT_MOUNT_FAILED
+    except UmountError as error:
+        for target in error.result.unmounted:
+            print(f"unmounted {target}")
+        for target in error.result.not_mounted:
+            print(f"not mounted {target}")
+        _error(str(error))
+        return EXIT_MOUNT_FAILED
+    for target in result.unmounted:
+        print(f"unmounted {target}")
+    for target in result.not_mounted:
+        print(f"not mounted {target}")
+    return EXIT_OK
+
+
+COMMANDS = {
+    "validate": _validate,
+    "apply": _apply,
+    "fstab": _fstab,
+    "mount": _mount,
+    "umount": _umount,
+}
 
 
 def main(argv: list[str] | None = None) -> int:
