@@ -65,8 +65,11 @@ partitioning:
 - **Sizes** accept bytes or a unit (`B, kB, MB … KiB, MiB, GiB …`).
 - **Sizing algorithm** (`spacer.py`): every partition gets its `max_size` if
   everything fits. Otherwise each starts at `min_size` and the remaining
-  space is shared in proportion to `weight × (max_size − min_size)`. All sizes
-  are aligned to the device block size.
+  space is shared in proportion to `weight × (max_size − min_size)`, **no
+  partition going above its `max_size`**: one that reaches it takes no more,
+  and what it leaves is shared again between the others. The whole space is
+  used, all sizes are aligned to the device block size, and a `weight` must be
+  above 0.
 - **Common space**: for a group of devices, the smallest usable space and the
   largest sector size are used so all disks get identical geometry.
 - **Reserved areas**: the first 2048 sectors and last 33 sectors are not used.

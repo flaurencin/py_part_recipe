@@ -79,21 +79,60 @@ def has_minmun_space(block_space: ChunkableSpace, chunks: List[BlockChunk]) -> b
     return block_space.block_size * block_space.nb_block >= minimal_space
 
 
+def _share_free_space(chunks: List[BlockChunk], free: float) -> List[float]:
+    """Share `free` octets above their minimum between the chunks.
+
+    Each chunk gets a part proportional to weight x (max - min), but never
+    more than its maximum: a chunk that would go above it takes only what it
+    can, and what it leaves is shared again between the others, until
+    everything is shared or every chunk is at its maximum.
+    """
+    extra = [0.0] * len(chunks)
+    active = [i for i, chunk in enumerate(chunks) if chunk.delta_max_min > 0]
+    while active and free > 0:
+        total = sum(chunks[i].weight * chunks[i].delta_max_min for i in active)
+        proposed = {
+            i: free * chunks[i].weight * chunks[i].delta_max_min / total for i in active
+        }
+        too_much = [i for i in active if proposed[i] > chunks[i].delta_max_min]
+        if not too_much:
+            for i in active:
+                extra[i] = proposed[i]
+            break
+        for i in too_much:
+            extra[i] = chunks[i].delta_max_min
+            free -= extra[i]
+        active = [i for i in active if i not in too_much]
+    return extra
+
+
 def qualify_chunks(
     block_space: ChunkableSpace, chunks: List[BlockChunk]
 ) -> List[BlockChunk]:
     """Cut available space using given hints about min_size, max_size, and weight
+
+    When everything fits at its maximum size, each chunk gets its maximum.
+    Otherwise each chunk starts at its minimum and the space left is shared in
+    proportion to weight x (max_size - min_size), without any chunk going over
+    its max_size. All the sizes are multiples of the block size and the whole
+    space is used.
 
     Args:
         block_space (ChunkableSpace): space to be partitionned
         chunks (List[BlockChunk]): unqulified chunks yet with rules
 
     Raises:
-        ValueError: if spsce is missing to respond to the minimum settings of the chunk
+        ValueError: if space is missing to respond to the minimum settings of the
+            chunks, or a weight is not above 0
 
     Returns:
         List[BlockChunk]: qualified chunks, with final size
     """
+    for chunk in chunks:
+        if chunk.weight <= 0:
+            raise ValueError(
+                f"the weight of a chunk must be above 0, got {chunk.weight}"
+            )
     if not has_minmun_space(block_space, chunks):
         raise ValueError("not enough space in block_space")
     for chunk in chunks:
@@ -102,35 +141,32 @@ def qualify_chunks(
             chunk.max_size, block_space.block_size, upward=False
         )
     sum_max_chunks = sum([chunk.optimal_max_size for chunk in chunks])
-    minimum_free_space = block_space.size_in_octets - sum_max_chunks
-    if minimum_free_space < 0:
-        competition_for_space = True
-        minimum_free_space = 0
-    else:
-        competition_for_space = False
-    if not competition_for_space:
+    if block_space.size_in_octets >= sum_max_chunks:
         for chunk in chunks:
             chunk.optimal_final_size = chunk.optimal_max_size
         return chunks
 
-    sum_weight = sum([chunk.weight for chunk in chunks])
-    for chunk in chunks:
-        chunk.adjusted_delta = round(chunk.delta_max_min * chunk.weight / sum_weight)
-
-    sum_deltas = sum([chunk.adjusted_delta for chunk in chunks])
+    # competition for the space: the minimums first, the rest is shared
     sum_min_chunks = sum([chunk.optimal_min_size for chunk in chunks])
-    remaiming_space = block_space.size_in_octets - sum_min_chunks
-    for index, chunk in enumerate(chunks):
-        factor = chunk.adjusted_delta / sum_deltas
-        if index == len(chunks) - 1:
-            used_space = sum(
-                [ch.optimal_final_size for ch in chunks if ch.optimal_final_size != -1]
-            )
-            chunk.optimal_final_size = block_space.size_in_octets - used_space
-            return chunks
+    extra = _share_free_space(chunks, block_space.size_in_octets - sum_min_chunks)
+    for chunk, part in zip(chunks, extra):
+        chunk.adjusted_delta = int(part)
         chunk.optimal_final_size = optimal_size(
-            (chunk.optimal_min_size + remaiming_space * factor),
-            block_space.block_size,
-            upward=False,
+            chunk.optimal_min_size + part, block_space.block_size, upward=False
         )
+    # what rounding to blocks left goes to the last chunks that have room
+    left = block_space.size_in_octets - sum(
+        chunk.optimal_final_size for chunk in chunks
+    )
+    for chunk in reversed(chunks):
+        added = min(left, chunk.optimal_max_size - chunk.optimal_final_size)
+        chunk.optimal_final_size += added
+        left -= added
+    # a float that rounded up by a block would use more than the space: take
+    # it back from the last chunks that are above their minimum
+    for chunk in reversed(chunks):
+        taken = min(-left, chunk.optimal_final_size - chunk.optimal_min_size)
+        if taken > 0:
+            chunk.optimal_final_size -= taken
+            left += taken
     return chunks
