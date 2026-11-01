@@ -216,6 +216,21 @@ Then:
 uv run pytest
 ```
 
+The tests destroy the devices they use, so they are guarded
+(`tests/device_guard.py`, `tests/conftest.py`):
+
+- They refuse to start if `/dev/loop100`–`106` are not backed by
+  `/tmp/loopN`, or if an md array `md1NN` or a volume group `vg_test*` already
+  exists, because the tests clean those up by name.
+- Every program the tests run, every `parted` device and every write open of a
+  `/dev` file is checked first. Only `/dev/loop100`–`106` (and their
+  partitions), `/dev/md100`–`199` and `vg_test*` volume groups are accepted;
+  anything else raises an error before anything happens. The real commands
+  still run, only their arguments are checked.
+
+When writing a test that needs another device name, extend the allowed names
+in `tests/device_guard.py` on purpose.
+
 Tests cover the sizing algorithm, device detection, partitioning (flush and
 keep modes), and RAID/LVM volume creation. Lint/format with `ruff` and `black`.
 

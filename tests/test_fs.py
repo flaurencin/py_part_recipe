@@ -128,7 +128,8 @@ def test_other_label_is_truncated(fs_type, limit, min_mib):
 
 def test_make_fs_failure_is_reported():
     ops = supported["ext4"](DEVICE, "data")
-    ops.device = "/dev/does-not-exist"
+    # a test device name that does not exist, the guard refuses anything else
+    ops.device = "/dev/md199"
     with pytest.raises(FormatError, match="mkfs.ext4"):
         ops.make_fs()
 

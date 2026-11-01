@@ -11,6 +11,7 @@ from py_part_recipe.partition_common import (
     Recipe,
 )
 from parted import IOException, Partition
+from device_guard import ensure_vg_absent
 
 from py_part_recipe.volume_common import (
     HandledVolumes,
@@ -169,6 +170,8 @@ def setup_raid_disk_2(disks: List[str]) -> Partitionner:
 def test_good_lvm_volume(
     native_disks, handles, raid_disk, raid_handles, vg_name, lvname
 ):
+    # the volume group is removed by name at the end of the test
+    ensure_vg_absent(vg_name)
     native_parter = setup_lvm_disk(native_disks)
     raid_parter = setup_raid_disk_2(raid_disk)
     handled_parts = HandledPartitions([raid_parter, native_parter])
@@ -313,7 +316,6 @@ def test_raid_volume_partitions_count_mismatch():
     # nothing was partitioned, no partition matches the handle
     with pytest.raises(ValueError, match="You expect 2 devices.*0 partitions"):
         RaidVolume(**raid_kwargs())
-
 
 
 def test_handled_volumes_duplicate_handle():
