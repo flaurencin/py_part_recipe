@@ -5,78 +5,13 @@ import logging
 import pytest
 import yaml
 
+from samples import sample_report
 from py_part_recipe.report import (
     FileSystemReport,
-    PartitionReport,
     Report,
     ReportError,
-    VolumeReport,
     default_fsck_pass,
 )
-
-
-def sample_report() -> Report:
-    return Report(
-        partitions={
-            "partitions_boot": [
-                PartitionReport("/dev/loop106p1", "/dev/loop106", 1, "aaaa-1", 52428800)
-            ],
-            "partitions_raid_md1": [
-                PartitionReport(
-                    "/dev/loop100p2", "/dev/loop100", 2, "bbbb-2", 104857600
-                ),
-                PartitionReport(
-                    "/dev/loop101p2", "/dev/loop101", 2, "cccc-3", 104857600
-                ),
-            ],
-        },
-        volumes={
-            "volume_boot": VolumeReport("raw", "/dev/loop106p1", None),
-            "volume_swap": VolumeReport("raw", "/dev/loop106p2", None),
-            "volume_md1": VolumeReport("raid", "/dev/md31", "md-uuid-1"),
-            "volume_lv_root": VolumeReport(
-                "logical_volume", "/dev/vg/lv_root", "lv-uuid-1"
-            ),
-            "volume_lv_var": VolumeReport(
-                "logical_volume", "/dev/vg/lv_var", "lv-uuid-2"
-            ),
-        },
-        # not in mount order on purpose
-        file_systems=[
-            FileSystemReport(
-                "volume_lv_var",
-                "ext4",
-                True,
-                "/dev/vg/lv_var",
-                "uuid-var",
-                "var",
-                "/var",
-            ),
-            FileSystemReport(
-                "volume_boot",
-                "fat32",
-                True,
-                "/dev/loop106p1",
-                "ABCD-1234",
-                mount="/boot/efi",
-            ),
-            FileSystemReport(
-                "volume_swap", "swap", True, "/dev/loop106p2", "uuid-swap"
-            ),
-            FileSystemReport(
-                "volume_lv_root",
-                "ext4",
-                True,
-                "/dev/vg/lv_root",
-                "uuid-root",
-                "root",
-                "/",
-            ),
-            FileSystemReport(
-                "volume_md1", "xfs", False, "/dev/md31", "uuid-md1", mount="/data"
-            ),
-        ],
-    )
 
 
 @pytest.mark.parametrize("fmt", ("yaml", "json"))

@@ -2,57 +2,15 @@ import copy
 import os
 
 import pytest
-import yaml
 from device_guard import ensure_vg_absent
 from device_helpers import ext_uuid, signatures
 
+from samples import DISKS, RECIPE
 from py_part_recipe.applier import Applier, ApplyError, apply_recipe
 from py_part_recipe.fs import FormatError, supported
 from py_part_recipe.recipe_loader import parse_recipe
 from py_part_recipe.report import Report
 from py_part_recipe.wipe import wipe_disk
-
-DISKS = ["/dev/loop100", "/dev/loop101", "/dev/loop102"]
-
-# The raid is on the two first disks, the other partitions on the third.
-# The names fit the test guard: /dev/md100 and the volume group vg_test.
-RECIPE = yaml.safe_load("""
-partitioning:
-  - devices: [/dev/loop100, /dev/loop101]
-    recipe:
-      wipe: true
-      partitions:
-        - {handle: raid_part, min_size: 20 MiB, max_size: 20 MiB, weight: 1,
-           flags: [raid]}
-  - devices: [/dev/loop102]
-    recipe:
-      wipe: true
-      partitions:
-        - {handle: boot_part, min_size: 10 MiB, max_size: 10 MiB, weight: 1}
-        - {handle: swap_part, min_size: 8 MiB, max_size: 8 MiB, weight: 1}
-volumes:
-  - handle: md_vol
-    type: raid
-    params:
-      partitions_handle: raid_part
-      level: 1
-      dev_indices: [0, 1]
-      raid_dev_name: /dev/md100
-  - {handle: vg_test, type: volume_group, params: {volumes_handles: [md_vol]}}
-  - handle: lv_root
-    type: logical_volume
-    params: {volume_handle: vg_test, vg_percent: 50}
-  - handle: lv_home
-    type: logical_volume
-    params: {volume_handle: vg_test, vg_percent: 25}
-  - {handle: boot_vol, type: raw, params: {partitions_handle: boot_part}}
-  - {handle: swap_vol, type: raw, params: {partitions_handle: swap_part}}
-file_systems:
-  - {type: ext4, volume_handle: lv_root, mount: /, label: root}
-  - {type: ext4, volume_handle: lv_home, mount: /home, mount_options: noatime}
-  - {type: ext2, volume_handle: boot_vol, mount: /boot}
-  - {type: swap, volume_handle: swap_vol}
-""")
 
 
 def recipe(mutate=None):
