@@ -34,6 +34,10 @@ ALLOWED_DEVICE_RE = re.compile(
     r"^/dev/(" r"loop10[0-6](p\d+)?" r"|md1\d\d" r"|vg_test[\w-]*(/[\w-]+)?" r")$"
 )
 HARMLESS_DEVICES = ("/dev/null", "/dev/zero")
+# dmsetup works on device mapper names (vg-lv), not on /dev paths: only the
+# names of the test volume groups can be removed, the rest is read only
+ALLOWED_DM_NAME_RE = re.compile(r"^vg_test[\w]*(-[\w]+)?$")
+DMSETUP_READ_ONLY = ("ls", "info", "status", "table", "deps", "version")
 
 
 class DeviceGuardError(RuntimeError):
@@ -57,12 +61,36 @@ def check_device_path(path: Any, origin: str):
     )
 
 
+def _check_dmsetup(args: list, origin: str):
+    """Check the arguments of a dmsetup command (`dmsetup <command> names`)."""
+    position = next(
+        (i for i, arg in enumerate(args) if os.path.basename(arg) == "dmsetup"), None
+    )
+    if position is None:
+        return
+    rest = [arg for arg in args[position + 1 :] if not arg.startswith("-")]
+    if not rest or rest[0] in DMSETUP_READ_ONLY:
+        return
+    if rest[0] != "remove":
+        raise DeviceGuardError(f"{origin}: dmsetup {rest[0]} is not allowed in tests")
+    for name in rest[1:]:
+        if not ALLOWED_DM_NAME_RE.match(name):
+            raise DeviceGuardError(
+                f"{origin}: refusing to remove the device mapper device {name}, "
+                "tests may only remove vg_test* volume groups"
+            )
+
+
 def _check_command(args: Any, shell: bool, origin: str):
     if isinstance(args, (str, bytes, os.PathLike)):
         args = shlex.split(os.fsdecode(args)) if shell else [args]
+    args = [
+        os.fsdecode(arg) if isinstance(arg, (bytes, os.PathLike)) else str(arg)
+        for arg in args
+    ]
+    _check_dmsetup(args, origin)
     for arg in args:
         # options like --device=/dev/sda are checked too
-        arg = os.fsdecode(arg) if isinstance(arg, (bytes, os.PathLike)) else str(arg)
         check_device_path(arg, origin)
         if "=" in arg:
             check_device_path(arg.split("=", 1)[1], origin)

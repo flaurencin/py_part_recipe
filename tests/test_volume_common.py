@@ -1,5 +1,4 @@
 import json
-import logging
 import os
 import subprocess
 from typing import List
@@ -10,8 +9,9 @@ from py_part_recipe.partition_common import (
     Partitionner,
     Recipe,
 )
-from parted import IOException, Partition
+from parted import Partition
 from device_guard import ensure_vg_absent
+from device_helpers import make_parts
 
 from py_part_recipe.volume_common import (
     HandledVolumes,
@@ -20,8 +20,6 @@ from py_part_recipe.volume_common import (
     RaidVolume,
     RawVolume,
 )
-
-LOGGER = logging.getLogger()
 
 
 def setup_raid_disk(disks: List[str]) -> Partitionner:
@@ -34,33 +32,6 @@ def setup_raid_disk(disks: List[str]) -> Partitionner:
     main_recipe = Recipe(disks, partitions)
     main_parter = Partitionner(main_recipe)
     return main_parter
-
-
-def make_parts(handled_parts: HandledPartitions):
-    handled_parts.create_partitions_mapping()
-    handled_parts.commit_to_devices()
-    try:
-        handled_parts.commit_to_os()
-    except IOException:
-        LOGGER.warning(
-            "Notifying the system directly failed. "
-            "Program is probably not running as root. "
-            "Attempting with sudo partx."
-        )
-    # results = [
-    #     subprocess.run(["sudo", "partx", "-d", disk.device.path], capture_output=True)
-    #     for parter in handled_parts.partitionners
-    #     for disk in parter.disks
-    # ]
-    results = [
-        subprocess.run(["sudo", "partx", "-u", disk.device.path], capture_output=True)
-        for parter in handled_parts.partitionners
-        for disk in parter.disks
-    ]
-    successes = [result.returncode == 0 for result in results]
-    if not all(successes):
-        raise IOError("Some modification on disks could not be notified to kernel")
-    handled_parts.committed_to_os = True
 
 
 def clean_raid(

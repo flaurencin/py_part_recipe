@@ -72,5 +72,29 @@ def test_open_for_reading_is_not_checked():
         assert dev.read() == b""
 
 
+@pytest.mark.parametrize(
+    "name", ("root", "vg00-root", "dm-0", "vg_test", "vg_test-lv_test", "vg_testing-lv")
+)
+def test_dmsetup_remove(name):
+    allowed = name.startswith("vg_test")
+    command = ["true", "dmsetup", "remove", "--force", name]
+    if allowed:
+        assert subprocess.run(command).returncode == 0
+    else:
+        with pytest.raises(DeviceGuardError, match=name):
+            subprocess.run(command)
+
+
+@pytest.mark.parametrize("sub", ("remove_all", "wipe_table", "suspend", "create"))
+def test_dmsetup_other_commands_refused(sub):
+    with pytest.raises(DeviceGuardError, match=sub):
+        subprocess.run(["true", "dmsetup", sub, "vg_test"])
+
+
+@pytest.mark.parametrize("sub", ("ls", "info", "status"))
+def test_dmsetup_read_only_commands_allowed(sub):
+    assert subprocess.run(["true", "dmsetup", sub]).returncode == 0
+
+
 def test_environment_has_no_problem():
     assert list(device_guard.verify_environment()) == []
