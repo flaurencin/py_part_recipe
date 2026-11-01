@@ -124,28 +124,51 @@ So:
 
 ## Requirements
 
-- Linux, Python ≥ 3.9 (the code uses `X | None` annotations, so effectively
-  ≥ 3.10).
-- Root, or passwordless `sudo`: external commands are prefixed with `sudo`
-  when not run as root.
-- `libparted` and its headers (to build `pyparted`), plus the tools for the
-  features you use: `mdadm`, `lvm2`, `e2fsprogs`, `dosfstools`.
+- **Linux** and **Python 3.10 or newer** (no upper limit). The tests that need
+  no privileges were run on 3.10, 3.12 and 3.13.
+- **Root, or passwordless `sudo`** for the commands below: when not run as
+  root, external commands are prefixed with `sudo`.
+- **[uv](https://docs.astral.sh/uv/)** to manage the environment.
+- **To build `pyparted`**, which is compiled at install time (it has no
+  wheels): a C compiler, the Python headers and the `libparted` headers.
+- **The command line tools of the features you use**:
 
-Debian/Ubuntu:
+| Feature | Commands | Debian/Ubuntu package |
+|---|---|---|
+| Partitions (runtime) | `libparted` | `libparted2` |
+| Partitions (build) | `libparted` headers | `libparted-dev` |
+| Kernel notification | `partx` | `util-linux` |
+| RAID | `mdadm` | `mdadm` |
+| LVM | `pvs`, `pvcreate`, `pvdisplay`, `vgcreate`, `vgdisplay`, `lvcreate` | `lvm2` |
+| ext2/3/4 | `mkfs.ext2`, `mkfs.ext3`, `mkfs.ext4` | `e2fsprogs` |
+| FAT | `mkfs.fat` | `dosfstools` |
+| xfs | `mkfs.xfs` | `xfsprogs` |
+| btrfs | `mkfs.btrfs` | `btrfs-progs` |
+| exFAT | `mkfs.exfat` | `exfatprogs` |
+| NTFS | `mkfs.ntfs` | `ntfs-3g` |
+| swap | `mkswap` | `util-linux` |
+
+Debian/Ubuntu, everything:
 
 ```bash
-sudo apt-get install -y build-essential libparted-dev mdadm lvm2 \
-    e2fsprogs dosfstools xfsprogs btrfs-progs exfatprogs ntfs-3g python3-dev
+sudo apt-get install -y build-essential python3-dev libparted-dev libparted2 \
+    util-linux mdadm lvm2 e2fsprogs dosfstools xfsprogs btrfs-progs \
+    exfatprogs ntfs-3g
 ```
+
+Package names for other distributions are not documented yet: use the
+commands column to find them. Nothing checks that the commands are installed
+before they are run, a missing one is reported when it is first needed.
 
 ## Installation
 
 ```bash
-poetry install
+uv sync
 ```
 
-`pyparted` is pulled from its GitHub release tarball (v3.13.0) and compiled
-locally.
+This creates `.venv` with the dependencies (`pyparted`, `pyyaml`) and the
+development tools (`pytest`, `black`, `ruff`). Dependencies are locked in
+`uv.lock`.
 
 ## Usage (Python API)
 
@@ -180,7 +203,8 @@ they need root privileges and system packages. `pretest.sh` sets this up on
 Debian/Ubuntu: it installs packages, creates the loop devices (sparse files in
 `/tmp`; `/dev/loop106` is 512 MB so `xfs` and `btrfs` can be formatted, and
 it is grown if it already exists), allows the needed commands in sudoers and
-builds the Poetry environment.
+runs `uv sync` (uv must be installed, and available in the `PATH` of whoever
+runs the script).
 
 ```bash
 bash pretest.sh
@@ -189,7 +213,7 @@ bash pretest.sh
 Then:
 
 ```bash
-poetry run pytest
+uv run pytest
 ```
 
 Tests cover the sizing algorithm, device detection, partitioning (flush and
