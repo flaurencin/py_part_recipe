@@ -43,7 +43,7 @@ function ensure_command {
 
 echo -n >/tmp/pretest.log
 packages=("util-linux" "mdadm" "lvm2" "python3" "dosfstools" "e2fsprogs"
-    "btrfs-progs" "zfsutils-linux" "ecryptfs-utils" "cifs-utils"
+    "btrfs-progs" "ntfs-3g" "zfsutils-linux" "ecryptfs-utils" "cifs-utils"
     "hfsprogs" "xfsprogs" "exfatprogs" "reiserfsprogs" "libparted-dev"
     "libparted-fs-resize0" "libparted2" "apfsprogs")
 for tool in "${packages[@]}"; do
@@ -68,11 +68,19 @@ if [ -n "$group_added" ]; then
     echo or logout and login again because you have been addes to the group disk
     exit 0
 fi
+# sizes of the test devices, sparse files: nothing is really allocated.
+# loop106 is used to test file systems with a minimum size (xfs, btrfs)
+declare -A device_sizes=([loop106]=512M)
 for block_dev in loop100 loop101 loop102 loop103 loop104 loop105 loop106; do
+    size=${device_sizes[$block_dev]:-40000K}
     if [ ! -e "/dev/$block_dev" ]; then
         printf "%b" "building test block device /dev/$block_dev from /tmp/$block_dev\n"
-        dd if=/dev/zero of=/tmp/$block_dev bs=4096 count=10000 &&
+        truncate -s "$size" /tmp/$block_dev &&
             losetup /dev/$block_dev /tmp/$block_dev
+    elif [ "$(blockdev --getsize64 /dev/$block_dev)" -lt "$(numfmt --from=iec "$size")" ]; then
+        printf "%b" "growing test block device /dev/$block_dev to $size\n"
+        truncate -s "$size" /tmp/$block_dev &&
+            losetup -c /dev/$block_dev
     fi
     display_service_status "Test Devices $block_dev Created" $?
 done
@@ -94,7 +102,7 @@ ensure_command cmds
 lvm_commands=("${valid_paths[@]}")
 printf "%b" "${bold}  linux fs   :${reset} ext2 ext4 ext3 xfs
 "
-cmds=("mkfs.ext2" "mkfs.ext3" "mkfs.ext4" "mkfs.xfs")
+cmds=("mkfs.ext2" "mkfs.ext3" "mkfs.ext4" "mkfs.xfs" "mkswap")
 ensure_command cmds
 lnuxfs_commands=("${valid_paths[@]}")
 printf "%b" "${bold}  windows fs :${reset} fat ntfs
