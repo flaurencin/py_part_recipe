@@ -188,7 +188,7 @@ def test_good_lvm_volume(
             assert not raid_volume.built
             raid_volume.build()
             assert raid_volume.built
-            handled_volumes._add_volume(raid_volume)
+            handled_volumes.add(raid_volume)
     except:
         clean_raid(handled_parts, raid_handles)
         raise
@@ -201,7 +201,17 @@ def test_good_lvm_volume(
         ],
         handle=vg_name,
     )
-    vg_volume.build()
+    handled_volumes.add(vg_volume)
+    lv_volume = LvmLvVolume(
+        handled_vols=handled_volumes,
+        volume_handle=vg_volume.handle,
+        handle=lvname,
+        vg_percent=80,
+    )
+    handled_volumes.add(lv_volume)
+    handled_volumes.build()
+    assert handled_volumes.built
+    assert handled_volumes.handle_to_dev[lvname] == f"/dev/{vg_name}/{lvname}"
     vgcreated_cmd = subprocess.run(
         ["sudo", "vgs", "--report-format", "json"], capture_output=True
     )
@@ -209,13 +219,6 @@ def test_good_lvm_volume(
     vgreated = vg_volume.handle in [
         vg["vg_name"] for vg in vgcreated_data["report"][0]["vg"]
     ]
-    lv_volume = LvmLvVolume(
-        handled_vols=handled_volumes,
-        volume_handle=vg_volume.handle,
-        handle=lvname,
-        vg_percent=80,
-    )
-    lv_volume.build()
     lvs_cmd = subprocess.run(
         ["sudo", "lvs", "--reportformat", "json"], capture_output=True
     )
@@ -310,3 +313,66 @@ def test_raid_volume_partitions_count_mismatch():
     # nothing was partitioned, no partition matches the handle
     with pytest.raises(ValueError, match="You expect 2 devices.*0 partitions"):
         RaidVolume(**raid_kwargs())
+
+
+
+def test_handled_volumes_duplicate_handle():
+    handled_parts = HandledPartitions([setup_raid_disk(["/dev/loop100"])])
+    make_parts(handled_parts)
+    handled_volumes = HandledVolumes()
+    handled_volumes.add(
+        RawVolume(
+            partitionners=handled_parts, partitions_handle="efi_part", handle="raw_dup"
+        )
+    )
+    with pytest.raises(KeyError, match="raw_dup"):
+        handled_volumes.add(
+            RawVolume(
+                partitionners=handled_parts,
+                partitions_handle="boot_part",
+                handle="raw_dup",
+            )
+        )
+
+
+def test_handled_volumes_build_unregistered_dependency():
+    # the dependency check runs before any system command
+    handled_parts = HandledPartitions([setup_raid_disk(["/dev/loop100"])])
+    handled_volumes = HandledVolumes()
+    handled_volumes.add(
+        LvmVgVolume(
+            handled_parts=handled_parts,
+            partitions_handles=[],
+            handled_vols=handled_volumes,
+            volumes_handles=["vol_missing"],
+            handle="vg_unregistered",
+        )
+    )
+    with pytest.raises(LookupError, match="vol_missing.*not registered"):
+        handled_volumes.build()
+
+
+def test_handled_volumes_build_wrong_order():
+    # the lv is registered before its vg, nothing must be created
+    handled_parts = HandledPartitions([setup_raid_disk(["/dev/loop100"])])
+    handled_volumes = HandledVolumes()
+    handled_volumes.add(
+        LvmLvVolume(
+            handled_vols=handled_volumes,
+            volume_handle="vg_late",
+            handle="lv_early",
+            vg_percent=50,
+        )
+    )
+    handled_volumes.add(
+        LvmVgVolume(
+            handled_parts=handled_parts,
+            partitions_handles=[],
+            handled_vols=handled_volumes,
+            volumes_handles=[],
+            handle="vg_late",
+        )
+    )
+    with pytest.raises(LookupError, match="vg_late.*not built yet"):
+        handled_volumes.build()
+    assert not handled_volumes.get_by_handle("vg_late").built

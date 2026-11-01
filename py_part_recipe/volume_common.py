@@ -27,13 +27,18 @@ class Volume(ABC):
     def handle(self) -> str:
         ...
 
+    @property
+    def dependencies(self) -> List[str]:
+        """Handles of the volumes that must be built before this one."""
+        return []
+
 
 class HandledVolumes:
     def __init__(self, volumes: Union[Dict[str, Volume], None] = None):
         self.volumes = volumes if volumes else {}
         self.created = False
 
-    def _add_volume(self, volume: Volume):
+    def add(self, volume: Volume):
         if volume.handle in self.volumes:
             raise KeyError(
                 f" Volume handle must be unique but {volume.handle}"
@@ -45,8 +50,25 @@ class HandledVolumes:
     def handle_to_dev(self) -> Dict[str, str]:
         return {handle: vol.sys_device for handle, vol in self.volumes.items()}
 
+    def _check_dependencies(self, volume: Volume):
+        for dep_handle in volume.dependencies:
+            if dep_handle not in self.volumes:
+                raise LookupError(
+                    f"Volume {volume.handle} depends on volume {dep_handle} "
+                    "which is not registered"
+                )
+            if not self.volumes[dep_handle].built:
+                raise LookupError(
+                    f"Volume {volume.handle} depends on volume {dep_handle} "
+                    "which is not built yet, volumes must be added in dependency order"
+                )
+
     def build(self):
-        for volume in self.volumes.values():
+        """Build, in registration order, the volumes that are not built yet."""
+        for volume in list(self.volumes.values()):
+            if volume.built:
+                continue
+            self._check_dependencies(volume)
             volume.build()
         self.created = True
 
@@ -94,6 +116,10 @@ class VolumeBasedVolume(Volume, ABC):
     def handle(self) -> str:
         return self._handle
 
+    @property
+    def dependencies(self) -> List[str]:
+        return [self.volume_handle]
+
     def get_volume_by_handle(self) -> Volume:
         return self.handled_vols.get_by_handle(self.volume_handle)
 
@@ -119,6 +145,10 @@ class MulitMixedVolume(Volume, ABC):
     @property
     def handle(self) -> str:
         return self._handle
+
+    @property
+    def dependencies(self) -> List[str]:
+        return list(self.volumes_handles)
 
 
 class RawVolume(PartitionBasedVolume):
@@ -356,7 +386,6 @@ class LvmVgVolume(MulitMixedVolume):
         if cmd.returncode != 0:
             error = cmd.stderr.decode("utf-8").replace("\n", " -> ")
             raise RuntimeError(f"Unable to Create lvm vg {self.handle} error: {error}")
-        self.handled_vols._add_volume(self)
         self.vg_dev = f"/dev/{self.handle}"
         self._built = True
 
@@ -426,7 +455,6 @@ class LvmLvVolume(VolumeBasedVolume):
             )
         self._built = True
         self.lv_dev = f"{vol.sys_device}/{self.handle}"
-        self.handled_vols._add_volume(self)
 
     @property
     def built(self):
