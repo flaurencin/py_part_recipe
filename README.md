@@ -124,6 +124,47 @@ Labels may contain spaces, they are cut to the limit of the file system, and
 default to the device name. Formatting replaces whatever is on the device:
 `xfs`, `btrfs` and `ntfs` are forced over an existing file system.
 
+## The report
+
+Once a recipe is applied, the system itself is read to describe what exists:
+`build_report(partitions, volumes, file_systems)` in `report_builder.py`
+returns a `Report` (`report.py`). Nothing is copied from what was asked, so the
+report tells the truth: a label cut to the limit of its file system is
+reported as stored.
+
+```yaml
+version: 1
+partitions:                       # by handle, one per disk
+  partitions_raid_md1:
+    - {device: /dev/loop100p2, disk: /dev/loop100, number: 2,
+       partuuid: 6f1c0a52-…, size_bytes: 104857600}
+volumes:                          # by handle
+  volume_md1: {type: raid, device: /dev/md31, uuid: 5d0e1a2b:…}
+  volume_lv_root:
+    {type: logical_volume, device: /dev/vg/lv_root, uuid: Tf3xAb-…}
+file_systems:
+  - volume: volume_lv_root
+    type: ext4
+    formatted: true               # false: the recipe left the volume alone
+    device: /dev/vg/lv_root
+    uuid: 3f2a9c1e-…
+    label: root
+    mount: /                      # mount point in the installed system
+    mount_options: defaults
+    fsck_pass: 1
+```
+
+- UUIDs come from `blkid` (file systems and partitions), `mdadm` (RAID arrays)
+  and the lvm tools (volume groups and logical volumes). A file system that
+  was not formatted by the recipe and holds nothing has no UUID.
+- A file system that was formatted but is not the expected one is an error.
+- The report is written as yaml or json (`dumps`, `dump`) and read back from
+  either (`loads`, `load`), with all the problems of an invalid report listed.
+- `fstab()` renders the file systems by `UUID=`, parents before children and
+  swap last. A file system with no UUID is left out with a warning.
+- Mount points are the paths in the installed system (`/`, `/boot`, …); the
+  directory where they get mounted is chosen when mounting.
+
 ## Responsibility and failure handling
 
 Applying a recipe is **destructive and not transactional**. The tool does not
@@ -264,13 +305,13 @@ Done:
 - Raw, RAID and LVM (VG/LV) volumes
 - ext2/3/4, FAT16/32, xfs, btrfs, exFAT, NTFS and swap (`mkswap`) formatting
 - Optional wiping of disks and partitions
-- The report model (yaml/json, validation, fstab rendering)
+- The report (yaml/json, validation, fstab rendering) built from the system:
+  partitions, RAID/LVM volumes and file systems with their UUIDs
 
 Not yet done (see `examples/example_recipe.yml` for the intended format):
 - Other file systems (`f2fs`, `zfs`, HFS, APFS, …)
 - Dry run, teardown, and resize operations
 - YAML recipe parsing and validation
-- Collecting the real UUIDs into a report after a recipe is applied
 - The command line: `apply`, `mount`, `umount` and `fstab`
 
 Out of scope by design: mounting file systems, activating swap, and rolling
