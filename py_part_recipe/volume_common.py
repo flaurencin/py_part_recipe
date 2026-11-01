@@ -5,6 +5,7 @@ from typing import Dict, List, Tuple, Union
 import parted
 from py_part_recipe.partition_common import HandledPartitions
 from py_part_recipe.common import gen_cmd_for_subprocess, validate_handle
+from py_part_recipe.wipe import settle, wipe_signatures
 
 RAID_LEVELS = (0, 1, 4, 5, 6, 10)
 RAID_METADATA_VERSIONS = ("0", "0.90", "1.0", "1", "1.2")
@@ -243,15 +244,25 @@ class RaidVolume(PartitionBasedVolume):
         dev_indices: List[int],
         spare_indices: Union[None, List[int]] = None,
         meta_data: str = "1.2",
+        wipe: bool = False,
         partitionners: HandledPartitions,
         partitions_handle: str,
         handle: str,
     ) -> None:
+        """
+        Args:
+            wipe (bool): erase the signatures of the array once it is created.
+                The data of an array starts at the same place of its partitions
+                each time it is created with the same layout: what an earlier
+                array left there (an lvm physical volume, a file system) would
+                show up again in the new one.
+        """
         super().__init__(
             partitionners=partitionners,
             partitions_handle=partitions_handle,
             handle=handle,
         )
+        self.wipe = wipe
         if not isinstance(partitions_handle, str) or not partitions_handle:
             raise ValueError(
                 "Raid volumes need exactly one non empty partitions_handle (str), "
@@ -345,6 +356,9 @@ class RaidVolume(PartitionBasedVolume):
             raise LookupError(
                 f"For some reason device {self.raid_dev_name} was not created"
             )
+        if self.wipe:
+            settle()  # udev is probing the new array, it can not be wiped meanwhile
+            wipe_signatures(self.raid_dev_name)
         self._built = True
 
     @property
@@ -437,10 +451,19 @@ class LvmLvVolume(VolumeBasedVolume):
         volume_handle: str,
         handle: str,
         vg_percent: float,
+        wipe: bool = False,
     ) -> None:
+        """
+        Args:
+            wipe (bool): wipe the signatures found in the space of the new
+                logical volume without asking (the space of a volume group
+                that was used before can hold a file system), and zero its
+                first sectors.
+        """
         super().__init__(
             *args, handled_vols=handled_vols, volume_handle=volume_handle, handle=handle
         )
+        self.wipe = wipe
         self.vg_percent = float(vg_percent)
         self.lv_dev: Union[None, str] = None
         self._built = False
@@ -475,6 +498,8 @@ class LvmLvVolume(VolumeBasedVolume):
         command = (
             f"lvcreate -l {round(self.vg_percent)}%VG -n {self.handle} {vol.sys_device}"
         )
+        if self.wipe:
+            command += " --yes --wipesignatures y --zero y"
         cmd = subprocess.run(gen_cmd_for_subprocess(command), capture_output=True)
         if cmd.returncode != 0:
             error = cmd.stderr.decode("utf-8").replace("\n", " -> ")
