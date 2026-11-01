@@ -132,7 +132,20 @@ sudo cp /tmp/sudo_py_part_recipe /etc/sudoers.d/py_part_recipe
 display_service_status "Privileged commands" $?
 
 printf "%b" "\nLet's sync the environment with uv.\n"
-command -v uv >/dev/null 2>&1
+# uv is usually installed for the user, not for root: when this script is run
+# with sudo, look for it in the home of the user who ran sudo, and run it as
+# that user so the environment (.venv) stays owned by them.
+env_user="${SUDO_USER:-}"
+env_home=""
+if [ -n "$env_user" ]; then
+    env_home=$(getent passwd "$env_user" | cut -d: -f6)
+fi
+uv_path=$(PATH="$PATH:$env_home/.local/bin:$env_home/.cargo/bin" command -v uv)
+[ -n "$uv_path" ]
 display_service_status "uv is installed (https://docs.astral.sh/uv/)" $?
-uv sync >>/tmp/pretest.log 2>&1
+if [ "$(id -u)" -eq 0 ] && [ -n "$env_user" ]; then
+    sudo -H -u "$env_user" "$uv_path" sync >>/tmp/pretest.log 2>&1
+else
+    "$uv_path" sync >>/tmp/pretest.log 2>&1
+fi
 display_service_status "Depency installation" $?
