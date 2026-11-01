@@ -6,10 +6,21 @@ readme = "README.md"
 license = { file = "LICENSE" }
 authors = [{ name = "Frederic Laurencin" }]
 requires-python = ">=3.10"
+keywords = ["partitioning", "disk", "raid", "lvm", "mdadm", "installer", "gpt"]
 classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: System :: Filesystems",
+    "Topic :: System :: Installation/Setup",
 ]
 dependencies = [
     "pyparted>=3.13.0",
@@ -25,6 +36,10 @@ dev = [
     "pytest>=7.4.3",
     "ruff>=0.1.2",
 ]
+
+# the example recipes are installed next to the package: <prefix>/share/py-part-recipe/examples
+[tool.hatch.build.targets.wheel.shared-data]
+"examples" = "share/py-part-recipe/examples"
 
 [build-system]
 requires = ["hatchling"]
