@@ -6,26 +6,82 @@ import parted
 from py_part_recipe.partition_common import HandledPartitions
 from py_part_recipe.common import gen_cmd_for_subprocess, validate_handle
 
+RAID_LEVELS = (0, 1, 4, 5, 6, 10)
+RAID_METADATA_VERSIONS = ("0", "0.90", "1.0", "1", "1.2")
+
+
+def check_raid_layout(
+    level: int,
+    dev_indices: List[int],
+    spare_indices: List[int],
+    nb_partitions: int,
+    partitions_handle: str,
+):
+    """Check the devices of a raid array against the partitions available.
+
+    Needs no disk: the number of partitions of a handle is known from the
+    recipe (one per disk), before anything is created.
+
+    Raises:
+        ValueError: the devices do not suit the raid level or the partitions
+    """
+    if level == 0 and len(dev_indices) < 2:
+        raise ValueError(
+            f"wrong number of devices for raid {level} "
+            f"expected >= 2 got {len(dev_indices)}"
+        )
+    elif level == 1 and len(dev_indices) != 2:
+        raise ValueError(
+            f"wrong number of devices for raid {level} "
+            f"expected 2 got {len(dev_indices)}"
+        )
+    elif level == 10 and len(dev_indices) != 4:
+        raise ValueError(
+            f"wrong number of devices for raid {level} "
+            f"expected 4 got {len(dev_indices)}"
+        )
+    elif level in (4, 5, 6) and len(dev_indices) < 3:
+        raise ValueError(
+            f"wrong number of devices for raid {level} "
+            f"expected >= 3 got {len(dev_indices)}"
+        )
+    if set(dev_indices).intersection(spare_indices):
+        raise ValueError(
+            "Some devices are common between raid and spare devices this must not happen"
+        )
+    total_expected_devices = len(spare_indices) + len(dev_indices)
+    if total_expected_devices != nb_partitions:
+        raise ValueError(
+            f"You expect {total_expected_devices} devices including spares "
+            f"but {nb_partitions} partitions were found for handle "
+            f"{partitions_handle}"
+        )
+    indices = list(dev_indices) + list(spare_indices)
+    if len(set(indices)) != len(indices):
+        raise ValueError("A device is used more than once in the raid and its spares")
+    for index in indices:
+        if not isinstance(index, int) or not 0 <= index < nb_partitions:
+            raise ValueError(
+                f"Device index {index!r} is not one of the {nb_partitions} "
+                f"partitions of handle {partitions_handle}, 0 to {nb_partitions - 1}"
+            )
+
 
 class Volume(ABC):
     @abstractmethod
-    def build(self):
-        ...
+    def build(self): ...
 
     @property
     @abstractmethod
-    def built(self) -> bool:
-        ...
+    def built(self) -> bool: ...
 
     @property
     @abstractmethod
-    def sys_device(self) -> str:
-        ...
+    def sys_device(self) -> str: ...
 
     @property
     @abstractmethod
-    def handle(self) -> str:
-        ...
+    def handle(self) -> str: ...
 
     @property
     def dependencies(self) -> List[str]:
@@ -167,8 +223,7 @@ class RawVolume(PartitionBasedVolume):
         self.partition: parted.Partition = _partitions[0]
         self._built = True
 
-    def build(self):
-        ...
+    def build(self): ...
 
     @property
     def built(self):
@@ -223,51 +278,25 @@ class RaidVolume(PartitionBasedVolume):
 
     def set_meta_data_version(self, meta_data_version: str):
         meta_data_version = str(meta_data_version)
-        if meta_data_version not in ("0", "0.90", "1.0", "1", "1.2"):
+        if meta_data_version not in RAID_METADATA_VERSIONS:
             raise ValueError(
                 f"You requested meta_data version {meta_data_version}, unknown to me."
             )
         self.meta_data_version = meta_data_version
 
     def set_raid_level(self, raid_level: int):
-        if raid_level not in (0, 1, 4, 5, 6, 10):
-            raise ValueError(
-                f"You requested raid level {raid_level}, unknown to me."
-            )
+        if raid_level not in RAID_LEVELS:
+            raise ValueError(f"You requested raid level {raid_level}, unknown to me.")
         self.raid_level = raid_level
 
     def _check_devices(self):
-        if self.raid_level == 1 and len(self.dev_indices) != 2:
-            raise ValueError(
-                f"wrong number of devices for raid {self.raid_level} "
-                f"expected 2 got {len(self.dev_indices)}"
-            )
-        elif self.raid_level == 10 and len(self.dev_indices) != 4:
-            raise ValueError(
-                f"wrong number of devices for raid {self.raid_level} "
-                f"expected 4 got {len(self.dev_indices)}"
-            )
-        elif self.raid_level in (4, 5, 6) and len(self.dev_indices) < 3:
-            raise ValueError(
-                f"wrong number of devices for raid {self.raid_level} "
-                f"expected >= 3 got {len(self.dev_indices)}"
-            )
-        devs_set = set(self.dev_indices)
-        spares_set = set(self.spare_indices)
-        if devs_set.intersection(spares_set):
-            raise ValueError(
-                "Some devices are common between raid and spare devices this must not happen"
-            )
-        total_expected_devices = len(self.spare_indices) + len(self.dev_indices)
-        total_available_devices = len(
-            self.partitionners.get_partitions_by_handle(self.partitions_handle)
+        check_raid_layout(
+            self.raid_level,
+            self.dev_indices,
+            self.spare_indices,
+            len(self.partitionners.get_partitions_by_handle(self.partitions_handle)),
+            self.partitions_handle,
         )
-        if total_expected_devices != total_available_devices:
-            raise ValueError(
-                f"You expect {total_expected_devices} devices including spares "
-                f"but {total_available_devices} partitions were found for handle "
-                f"{self.partitions_handle}"
-            )
 
         self.set_devices()
 

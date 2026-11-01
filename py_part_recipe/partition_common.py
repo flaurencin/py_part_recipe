@@ -216,10 +216,12 @@ class PartitionRequest:
             )
         for index, flag in enumerate(self.flags):
             if isinstance(flag, str):
+                if flag not in PARTITION_NAME_TO_P:
+                    raise ValueError(f"Invalid Partition Flag {flag}")
                 flag = PARTITION_NAME_TO_P[flag]
                 self.flags[index] = flag
             if flag not in PARTITION_P_TO_NAME:
-                raise ValueError(f"Invqlid Pqrtition Flag {flag}")
+                raise ValueError(f"Invalid Partition Flag {flag}")
 
 
 @dataclass

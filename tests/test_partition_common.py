@@ -375,6 +375,17 @@ def test_partition_request_only_normal_partitions(p_type):
         PartitionRequest("part_a", "2MiB", "5MiB", 100, p_type=p_type)
 
 
+@pytest.mark.parametrize("flag", ("nonexistent", "RAID", ""))
+def test_partition_request_unknown_flag_name(flag):
+    with pytest.raises(ValueError, match="Invalid Partition Flag"):
+        PartitionRequest("part_a", "2MiB", "5MiB", 100, flags=["raid", flag])
+
+
+def test_partition_request_flag_names_become_flags():
+    request = PartitionRequest("part_a", "2MiB", "5MiB", 100, flags=["raid", "boot"])
+    assert request.flags == [parted.PARTITION_RAID, parted.PARTITION_BOOT]
+
+
 def test_partition_request_normal_partition():
     request = PartitionRequest("part_a", "2MiB", "5MiB", 100, p_type="normal")
     assert request.p_type == parted.PARTITION_NORMAL

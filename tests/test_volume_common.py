@@ -19,6 +19,7 @@ from py_part_recipe.volume_common import (
     LvmVgVolume,
     RaidVolume,
     RawVolume,
+    check_raid_layout,
 )
 
 
@@ -349,3 +350,46 @@ def test_handled_volumes_build_wrong_order():
     with pytest.raises(LookupError, match="vg_late.*not built yet"):
         handled_volumes.build()
     assert not handled_volumes.get_by_handle("vg_late").built
+
+
+# ----- the raid layout is checked without any disk
+
+
+@pytest.mark.parametrize(
+    "level,devices,spares,nb_partitions",
+    (
+        (0, [0, 1], [], 2),
+        (0, [0, 1, 2], [], 3),
+        (1, [0, 1], [], 2),
+        (1, [0, 1], [2], 3),
+        (5, [0, 1, 2], [], 3),
+        (5, [0, 1, 2], [3], 4),
+        (6, [0, 1, 2, 3], [], 4),
+        (10, [0, 1, 2, 3], [4], 5),
+        (1, [1, 0], [], 2),
+    ),
+)
+def test_check_raid_layout_valid(level, devices, spares, nb_partitions):
+    check_raid_layout(level, devices, spares, nb_partitions, "handle")
+
+
+@pytest.mark.parametrize(
+    "level,devices,spares,nb_partitions,message",
+    (
+        (0, [0], [], 1, "expected >= 2"),
+        (1, [0], [], 1, "expected 2 got 1"),
+        (1, [0, 1, 2], [], 3, "expected 2 got 3"),
+        (5, [0, 1], [], 2, "expected >= 3 got 2"),
+        (10, [0, 1, 2], [], 3, "expected 4 got 3"),
+        (1, [0, 1], [1], 3, "common between raid and spare"),
+        (1, [0, 1], [], 3, "You expect 2 devices including spares but 3 partitions"),
+        (1, [0, 1], [2], 2, "You expect 3 devices including spares but 2 partitions"),
+        (1, [0, 0], [], 2, "more than once"),
+        (1, [0, 2], [], 2, "Device index 2"),
+        (1, [0, -1], [], 2, "Device index -1"),
+        (1, [0, "1"], [], 2, "Device index '1'"),
+    ),
+)
+def test_check_raid_layout_invalid(level, devices, spares, nb_partitions, message):
+    with pytest.raises(ValueError, match=message):
+        check_raid_layout(level, devices, spares, nb_partitions, "handle")
