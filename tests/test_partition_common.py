@@ -369,6 +369,30 @@ def test_recipe_valid_same_partitions_flush_existing(
     )
 
 
+@pytest.mark.parametrize("p_type", ("logical", "extended", "metadata", 99))
+def test_partition_request_only_normal_partitions(p_type):
+    with pytest.raises(ValueError, match="gpt"):
+        PartitionRequest("part_a", "2MiB", "5MiB", 100, p_type=p_type)
+
+
+def test_partition_request_normal_partition():
+    request = PartitionRequest("part_a", "2MiB", "5MiB", 100, p_type="normal")
+    assert request.p_type == parted.PARTITION_NORMAL
+
+
+def test_keep_partitions_refuses_non_gpt_table():
+    device = "/dev/loop100"
+    ped_disk = parted.freshDisk(parted.Device(device), "msdos")
+    ped_disk.commitToDevice()
+    try:
+        with pytest.raises(ValueError, match="msdos.*only gpt"):
+            Recipe([device], keep_partitions=True)
+        # the table is only checked when existing partitions must be kept
+        Recipe([device], keep_partitions=False)
+    finally:
+        setup_clean_disk(device)
+
+
 def test_handled_partitions_str_by_handle():
     # mapping only, nothing is written to the disks
     devices = ["/dev/loop100", "/dev/loop101"]

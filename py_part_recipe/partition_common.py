@@ -12,6 +12,7 @@ from logging import getLogger
 from parted import __exponents
 
 LOGGER = getLogger()
+PARTITION_TABLE_TYPE = "gpt"
 PARTITION_NAME_TO_P = {value: key for key, value in parted.partitions.items()}
 if "esp" not in PARTITION_NAME_TO_P:
     PARTITION_NAME_TO_P.update(
@@ -200,17 +201,18 @@ class PartitionRequest:
         self.min_size_bytes = convert_size_to_bytes(self.min_size)
         self.max_size_bytes = convert_size_to_bytes(self.max_size)
         if isinstance(self.p_type, str):
+            if self.p_type not in PARTITION_NAME_TO_P:
+                raise ValueError(
+                    f"Invalid Partition Type {self.p_type}, only 'normal' "
+                    "partitions exist on a gpt partition table"
+                )
             self.p_type = PARTITION_NAME_TO_P[self.p_type]
-        VALID_TYPES = [
-            parted.PARTITION_NORMAL,
-            parted.PARTITION_LOGICAL,
-            parted.PARTITION_EXTENDED,
-            parted.PARTITION_FREESPACE,
-            parted.PARTITION_METADATA,
-            parted.PARTITION_PROTECTED,
-        ]
-        if self.p_type not in VALID_TYPES:
-            raise ValueError(f"Invalid Partition Type {self.p_type}")
+        # only gpt is supported, there are no extended or logical partitions
+        if self.p_type != parted.PARTITION_NORMAL:
+            raise ValueError(
+                f"Invalid Partition Type {self.p_type}, only 'normal' partitions "
+                "exist on a gpt partition table"
+            )
         for index, flag in enumerate(self.flags):
             if isinstance(flag, str):
                 flag = PARTITION_NAME_TO_P[flag]
@@ -255,23 +257,23 @@ class Recipe:
         self.common_space = (
             self.common_space // self.common_block_size * self.common_block_size
         )
-        disks_table_types = [parted.Device(device.path).type for device in self.devices]
-        error = ", ".join(
-            [
-                f"{disk.path}: {ttype}"
-                for ttype, disk in zip(disks_table_types, self.devices)
-            ]
-        )
-        if self.keep_partitions and len(set(disks_table_types)) > 1:
-            raise ValueError(
-                f"All disks do not share the same partitionning tabe type {error}"
-            )
+        if not self.keep_partitions:
+            return
+        # existing partitions can only be kept on a gpt partition table
+        for device in self.devices:
+            try:
+                table_type = parted.newDisk(parted.Device(device.path)).type
+            except DiskException:
+                continue  # no partition table, nothing to keep
+            if table_type != PARTITION_TABLE_TYPE:
+                raise ValueError(
+                    f"{device.path} has a '{table_type}' partition table, "
+                    f"only {PARTITION_TABLE_TYPE} is supported"
+                )
 
 
 class Partitionner:
-    valid_ptable_type = ("gpt", "msdos")
-
-    def __init__(self, recipe: Recipe, table_type: str = "gpt"):
+    def __init__(self, recipe: Recipe):
         self.recipe = recipe
         self.disks: List[parted.Disk] = []
         self.created_partitions_per_dev: Dict[
@@ -280,14 +282,6 @@ class Partitionner:
         self.created_parttions_by_handle: Dict[
             str, List[parted.Partition]
         ] = defaultdict(list)
-
-        if table_type in self.valid_ptable_type:
-            self.ptable_type = table_type
-        else:
-            raise ValueError(
-                "this is meant to be used for Linux usage and only support gpt and msdos "
-                "partiotionning table."
-            )
 
     def _figure_out_partitions(self):
         block_chunks = [
@@ -309,7 +303,7 @@ class Partitionner:
             ]
         else:
             disks = [
-                parted.freshDisk(parted.Device(disk.path), self.ptable_type)
+                parted.freshDisk(parted.Device(disk.path), PARTITION_TABLE_TYPE)
                 for disk in self.recipe.devices
             ]
         self.disks = disks
