@@ -1,0 +1,194 @@
+partitioning:
+  - devices:
+      - /dev/loop100
+      - /dev/loop101
+      - /dev/loop102
+    recipe:
+      keep_partitions :
+      partitions:
+        - min_size: 2 MiB
+          max_size: 5 MiB
+          weight: 5000
+          p_type: normal
+          flags: ["raid", "esp"]
+          handle: partitions_raid_md0
+        - min_size: 20 MiB
+          max_size: 200 MiB
+          weight: 500
+          p_type: normal
+          flags: ["raid"]
+          handle: partitions_raid_md1
+        - min_size: 20 MiB
+          max_size: 2 GiB
+          weight: 10
+          p_type: normal
+          flags: ["raid"]
+          handle: partitions_raid_md2
+  - devices:
+      - /dev/loop103
+      - /dev/loop104
+      - /dev/loop105
+    recipe:
+      keep_partitions :
+      partitions:
+      partitions:
+        - min_size: 20 MiB
+          max_size: 200 MiB
+          weight: 500
+          p_type: normal
+          flags: ["raid"]
+          handle: partitions_raid_md4
+        - min_size: 20 MiB
+          max_size: 2 GiB
+          weight: 10
+          p_type: normal
+          flags: ["raid"]
+          handle: partitions_raid_md5
+  - devices:
+      - /dev/loop106
+    recipe:
+      keep_partitions :
+      partitions:
+        - min_size: 20 MiB
+          max_size: 51 MiB
+          weight: 100
+          p_type: normal
+          flags: ["boot"]
+          handle: partitions_boot
+        - min_size: 4 MiB
+          max_size: 4 MiB
+          weight: 100
+          p_type: normal
+          flags: ["swap"]
+          handle: partitions_swap
+volumes:
+  - type: raw
+    params:
+      partitions_handle: partitions_boot
+    handle: volume_boot
+  - type: raw
+    params:
+      partitions_handle: partitions_swap
+    handle: volume_swap
+  - type: raid
+    params: 
+      partitions_handle: partitions_raid_md0
+      level: 1
+      dev_indices:
+        - 0
+        - 1
+      spare_indices:
+        - 2
+      metadata: 1.0
+      riad_dev_name: /dev/md30
+    handle: volume_md0
+  - type: raid
+    params: 
+      partitions_handle: partitions_raid_md1
+      level: 1
+      dev_indices:
+        - 0
+        - 1
+      spare_indices:
+        - 2
+      metadata: 1.0
+      riad_dev_name: /dev/md31
+    handle: volume_md1
+  - type: raid
+    params: 
+      partitions_handle: partitions_raid_md2
+      level: 1
+      dev_indices:
+        - 0
+        - 1
+      spare_indices:
+        - 2
+      metadata: 1.0
+      riad_dev_name: /dev/md32
+    handle: volume_md2
+  - type: raid
+    params: 
+      partitions_handle: 
+        - partitions_raid_md4
+      level: 1
+      dev_indices:
+        - 0
+        - 1
+      spare_indices:
+        - 2
+      metadata: 1.0
+      riad_dev_name: /dev/md34
+    handle: volume_md4
+  - type: raid
+    params: 
+      partitions_handle: partitions_raid_md5
+      level: 1
+      dev_indices:
+        - 0
+        - 1
+      spare_indices:
+        - 2
+      metadata: 1.0
+      riad_dev_name: /dev/md35
+    handle: volume_md5
+  - type: volume_group
+    params:
+      partitions_by_handle: []
+      volumes_by_handle:
+        - volume_md1
+        - volume_md4
+    handle: volume_vg_root
+  - type: logical_volume
+    params:
+      partitions_by_handle: []
+      volumes_by_handle:
+        - volume_md2
+        - volume_md5
+    handle: volume_vg_var
+  - type: logical_volume
+    params:
+      volumes_by_handle:
+        - volume_vg_root
+      usage_percent: 60
+    handle: volume_lv_root
+  - type: logical_volume
+    params:
+      volumes_by_handle: volume_vg_root
+      usage_percent: 20
+    handle: volume_lv_home
+  - type: logical_volume
+    params:
+      volumes_by_handle:
+        - volume_vg_rvar
+      usage_percent: 80
+    handle: volume_lv_var
+file_systems:
+  - type: ext4
+    format: true
+    volume_handle: volume_lv_root
+    mount: /target
+    install_mount: /
+  - type: ext4
+    format: true
+    volume_handle: volume_lv_var
+    mount: /target/var
+    install_mount: /var
+  - type: ext4
+    format: true
+    volume_handle: volume_lv_home
+    mount: /target/home
+    install_mount: /home
+  - type: ext3
+    format: true
+    volume_handle: volume_boot
+    mount: /target/boot
+    install_mount: /boot
+  - type: fat32
+    format: true
+    volume_handle: volume_md0
+    mount: /target/boot/efi
+    install_mount: /boot/efi
+  - type: swap
+    format: true
+    volume_handle: volume_swap
+    install_mount: swap

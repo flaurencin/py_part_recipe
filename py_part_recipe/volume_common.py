@@ -287,7 +287,7 @@ class RaidVolume(PartitionBasedVolume):
             )
         if not os.path.exists(self.raid_dev_name):
             raise LookupError(
-                f"For some reqson device {self.raid_dev_name} was not created"
+                f"For some reason device {self.raid_dev_name} was not created"
             )
         self._built = True
 
