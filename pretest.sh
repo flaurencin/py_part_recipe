@@ -85,11 +85,6 @@ for block_dev in loop100 loop101 loop102 loop103 loop104 loop105 loop106; do
     display_service_status "Test Devices $block_dev Created" $?
 done
 
-if [ ! -x ".venv" ]; then
-    python3 -m venv .venv
-    display_service_status "Pyhton 3 venv creation" $?
-fi
-
 printf "%b" "\nLet's get sure you can run some commands using sudo\nwith no password.\n"
 printf "%b" "${bold}  essentials :${reset} raid and partx\n"
 cmds=("mdadm" "partx")
@@ -136,12 +131,8 @@ done
 sudo cp /tmp/sudo_py_part_recipe /etc/sudoers.d/py_part_recipe
 display_service_status "Privileged commands" $?
 
-# shellcheck disable=SC1091
-source ./.venv/bin/activate
-display_service_status "Entering venv" $?
-pip install --upgrade pip >>/tmp/pretest.log 2>&1
-display_service_status "Pip is up to date" $?
-printf "%b" "\nLet's make poetry.\n"
-pip install poetry >>/tmp/pretest.log 2>&1 &&
-    poetry install >>/tmp/pretest.log 2>&1
+printf "%b" "\nLet's sync the environment with uv.\n"
+command -v uv >/dev/null 2>&1
+display_service_status "uv is installed (https://docs.astral.sh/uv/)" $?
+uv sync >>/tmp/pretest.log 2>&1
 display_service_status "Depency installation" $?

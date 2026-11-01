@@ -1,21 +1,28 @@
-[tool.poetry]
+[project]
 name = "py-part-recipe"
 version = "0.1.0"
 description = "A partition manager based on yaml recipe for linux"
-authors = ["Frederic Laurencin"]
-license = "MIT"
 readme = "README.md"
+license = { file = "LICENSE" }
+authors = [{ name = "Frederic Laurencin" }]
+requires-python = ">=3.10"
+classifiers = [
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+]
+dependencies = [
+    "pyparted>=3.13.0",
+    "pyyaml>=6.0.1",
+]
 
-[tool.poetry.dependencies]
-python = ">=3.9"
-pyparted = {url = "https://github.com/dcantrell/pyparted/releases/download/v3.13.0/pyparted-3.13.0.tar.gz"}
-pyyaml = "^6.0.1"
-
-[tool.poetry.group.dev.dependencies]
-ruff = "^0.1.2"
-black = "^23.10.1"
-pytest = "^7.4.3"
+[dependency-groups]
+dev = [
+    "black>=23.10.1",
+    "pytest>=7.4.3",
+    "ruff>=0.1.2",
+]
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
