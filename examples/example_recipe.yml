@@ -5,6 +5,7 @@ partitioning:
       - /dev/loop102
     recipe:
       keep_partitions: false
+      wipe: false
       partitions:
         - min_size: 2 MiB
           max_size: 5 MiB
@@ -30,6 +31,7 @@ partitioning:
       - /dev/loop105
     recipe:
       keep_partitions: false
+      wipe: false
       partitions:
         - min_size: 20 MiB
           max_size: 200 MiB
@@ -47,6 +49,7 @@ partitioning:
       - /dev/loop106
     recipe:
       keep_partitions: false
+      wipe: false
       partitions:
         - min_size: 20 MiB
           max_size: 51 MiB

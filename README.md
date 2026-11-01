@@ -49,6 +49,7 @@ partitioning:
   - devices: [/dev/loop100, /dev/loop101]
     recipe:
       keep_partitions:        # true: add to free space instead of wiping
+      wipe: false             # true: erase everything first, see "Wiping"
       partitions:
         - handle: partitions_boot
           min_size: 20 MiB
@@ -67,10 +68,31 @@ partitioning:
   largest sector size are used so all disks get identical geometry.
 - **Reserved areas**: the first 2048 sectors and last 33 sectors are not used.
   With `keep_partitions`, the largest free region is used instead.
+- **Wiping** (`wipe: true`, off by default): see below.
 - **Partition table**: always `gpt`. With `keep_partitions`, a disk that
   already has a different table type is refused. Only `normal` partitions
   exist (`p_type: normal`).
 - **Flags**: any `libparted` flag by name (`raid`, `boot`, `swap`, `esp`, …).
+
+#### Wiping
+
+Old RAID members, LVM physical volumes, file systems and partition tables get
+in the way of a new layout. With `wipe: true` (`Recipe(wipe=True)` in Python),
+everything is erased as much as possible:
+
+1. **Before the new table is written**, each disk is *released*: whatever is
+   built on its partitions is stopped from the top down (RAID arrays with
+   `mdadm --stop`, device mapper devices such as LVM volumes with
+   `dmsetup remove`, at any depth). Then the signatures of each partition and
+   of the disk itself are erased with `wipefs`, which removes the partition
+   table.
+2. **Once the kernel knows the new partitions**, call
+   `HandledPartitions.wipe_partitions()`: it erases the old signatures that the
+   previous layout left inside the new partitions.
+
+Volumes built on freshly wiped partitions start clean, so they need no wipe of
+their own. `wipe` can not be combined with `keep_partitions`. A mounted file
+system is not unmounted: the device is busy and wiping fails.
 
 ### Volumes
 
@@ -241,11 +263,15 @@ Done:
 - GPT partitioning on multiple identical disks, optional keep-existing mode
 - Raw, RAID and LVM (VG/LV) volumes
 - ext2/3/4, FAT16/32, xfs, btrfs, exFAT, NTFS and swap (`mkswap`) formatting
+- Optional wiping of disks and partitions
+- The report model (yaml/json, validation, fstab rendering)
 
 Not yet done (see `examples/example_recipe.yml` for the intended format):
-- YAML recipe parsing/validation and a CLI entry point
 - Other file systems (`f2fs`, `zfs`, HFS, APFS, …)
 - Dry run, teardown, and resize operations
+- YAML recipe parsing and validation
+- Collecting the real UUIDs into a report after a recipe is applied
+- The command line: `apply`, `mount`, `umount` and `fstab`
 
 Out of scope by design: mounting file systems, activating swap, and rolling
 back a failed run (see below).
