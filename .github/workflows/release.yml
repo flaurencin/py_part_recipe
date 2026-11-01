@@ -1,0 +1,136 @@
+# Publishes a release when a tag "vX.Y.Z" is pushed:
+#
+#   git tag -a v0.2.0 -m "py-part-recipe 0.2.0" && git push origin v0.2.0
+#
+# The tag must be the version of pyproject.toml. The release gets the wheel, the
+# sdist, offline sets of wheels (see the README), and their checksums.
+#
+# The tests are not run here: they need loop devices and root, run them before
+# tagging.
+name: Release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+*"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build the wheel and the sdist
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: The tag is the version of the package
+        run: python .github/scripts/check_version.py "$GITHUB_REF_NAME"
+
+      - name: Build
+        run: |
+          python -m pip install --upgrade pip build twine
+          python -m build
+          twine check dist/*
+
+      # pyparted is compiled when the wheel is installed
+      - name: Install what compiling pyparted needs
+        run: sudo apt-get update && sudo apt-get install -y libparted-dev
+
+      - name: Install the wheel in a clean environment and run the command
+        run: |
+          python -m venv "$RUNNER_TEMP/smoke"
+          "$RUNNER_TEMP/smoke/bin/pip" install --upgrade pip wheel
+          "$RUNNER_TEMP/smoke/bin/pip" install dist/*.whl
+          "$RUNNER_TEMP/smoke/bin/py-part-recipe" --help
+          prefix="$("$RUNNER_TEMP/smoke/bin/python" -c 'import sys; print(sys.prefix)')"
+          "$RUNNER_TEMP/smoke/bin/py-part-recipe" validate \
+            "$prefix/share/py-part-recipe/examples/example_recipe.yml"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/*
+          if-no-files-found: error
+
+  wheelhouse:
+    name: Wheels for an offline install (python ${{ matrix.python-version }})
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install what compiling pyparted needs
+        run: sudo apt-get update && sudo apt-get install -y libparted-dev
+
+      - name: Build every wheel the package needs
+        run: |
+          python -m pip install --upgrade pip wheel
+          python -m pip wheel dist/*.whl --wheel-dir wheelhouse
+
+      - name: Install from these wheels only, no index
+        run: |
+          python -m venv "$RUNNER_TEMP/offline"
+          "$RUNNER_TEMP/offline/bin/pip" install --no-index --only-binary :all: \
+            --find-links wheelhouse py-part-recipe
+          "$RUNNER_TEMP/offline/bin/py-part-recipe" --help
+
+      - name: Pack
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          tag="$(python -c 'import sys; print(f"cp{sys.version_info.major}{sys.version_info.minor}")')"
+          mkdir -p packed
+          tar czf "packed/py-part-recipe-wheelhouse-${version}-${tag}-linux-x86_64.tar.gz" wheelhouse
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheelhouse-${{ matrix.python-version }}
+          path: packed/*
+          if-no-files-found: error
+
+  release:
+    name: Publish the release
+    needs: [build, wheelhouse]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release
+          merge-multiple: true
+
+      - name: Checksums
+        run: cd release && sha256sum -- * > SHA256SUMS && cat SHA256SUMS
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # a tag like v1.2.3 is a release, v1.2.3rc1 or v1.2.3-beta is a pre-release
+          flags=()
+          if ! [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            flags+=(--prerelease)
+          fi
+          gh release create "$GITHUB_REF_NAME" release/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --title "py-part-recipe ${GITHUB_REF_NAME#v}" \
+            --generate-notes \
+            --notes "Install the wheel with pip (see the README, section Installation). \`py-part-recipe-wheelhouse-*\` hold every wheel needed to install without a compiler or network, one per Python version, for Linux x86_64. Check the files with \`SHA256SUMS\`." \
+            "${flags[@]}"

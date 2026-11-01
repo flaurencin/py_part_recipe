@@ -542,6 +542,38 @@ in `tests/device_guard.py` on purpose.
 Tests cover the sizing algorithm, device detection, partitioning (flush and
 keep modes), and RAID/LVM volume creation. Lint/format with `ruff` and `black`.
 
+### Making a release
+
+A release is made by a tag. The workflow `.github/workflows/release.yml` runs
+when a tag `vX.Y.Z` is pushed:
+
+```bash
+# 1. set the version in pyproject.toml, run the tests (they need loop devices
+#    and root, the workflow does not run them), commit
+# 2. tag that commit and push the tag
+git tag -a v0.2.0 -m "py-part-recipe 0.2.0"
+git push origin main v0.2.0
+```
+
+The workflow then:
+
+1. **checks that the tag is the version of `pyproject.toml`** (`v0.2.0` for
+   `0.2.0`) and stops if not, so a tag can not publish a wheel of another
+   version;
+2. builds the wheel and the sdist, checks them with `twine`, installs the wheel
+   in a clean virtual environment and runs the command and the example recipe
+   with it;
+3. builds, for Python 3.10, 3.11, 3.12 and 3.13 on Linux x86_64, the folder of
+   wheels needed to [install without a compiler or network](#without-a-compiler-or-network-build-the-wheels-once)
+   and checks that it installs with no index;
+4. creates the GitHub release with all of these, a `SHA256SUMS` file, and
+   generated release notes. A tag with a suffix (`v0.2.0rc1`, `v0.2.0-beta.1`)
+   makes a pre-release.
+
+If a step fails nothing is published; delete the tag (`git push origin :v0.2.0`,
+`git tag -d v0.2.0`), fix, and tag again. The workflow's own checks of a tag
+can be run before pushing it: `python .github/scripts/check_version.py v0.2.0`.
+
 ## Project status
 
 Done:
