@@ -27,6 +27,11 @@ dependencies = [
     "pyyaml>=6.0.1",
 ]
 
+[project.urls]
+Homepage = "https://github.com/flaurencin/py_part_recipe"
+Repository = "https://github.com/flaurencin/py_part_recipe"
+Issues = "https://github.com/flaurencin/py_part_recipe/issues"
+
 [project.scripts]
 py-part-recipe = "py_part_recipe.cli:main"
 
