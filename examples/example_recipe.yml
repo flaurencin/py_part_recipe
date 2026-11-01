@@ -147,32 +147,30 @@ volumes:
       volume_handle: volume_vg_var
       vg_percent: 80
 file_systems:
+  # mount is the mount point in the installed system, the directory where
+  # it is mounted (/target...) is chosen when mounting
   - type: ext4
     format: true
     volume_handle: volume_lv_root
-    mount: /target
-    install_mount: /
+    mount: /
   - type: ext4
     format: true
     volume_handle: volume_lv_var
-    mount: /target/var
-    install_mount: /var
+    mount: /var
   - type: ext4
     format: true
     volume_handle: volume_lv_home
-    mount: /target/home
-    install_mount: /home
+    mount: /home
+    mount_options: noatime
   - type: ext3
     format: true
     volume_handle: volume_boot
-    mount: /target/boot
-    install_mount: /boot
+    mount: /boot
   - type: fat32
     format: true
     volume_handle: volume_md0
-    mount: /target/boot/efi
-    install_mount: /boot/efi
+    mount: /boot/efi
+    mount_options: umask=0077
   - type: swap
     format: true
     volume_handle: volume_swap
-    install_mount: swap
