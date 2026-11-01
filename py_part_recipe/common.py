@@ -1,16 +1,22 @@
 import re
 import os
 import shlex
-from typing import List
+from typing import List, Union
 
 HANDLE_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
 UID = os.getuid()
 
 
-def gen_cmd_for_subprocess(cmd: str) -> List[str]:
+def gen_cmd_for_subprocess(cmd: Union[str, List[str]]) -> List[str]:
+    """Build the argv to run a command, prefixed with sudo when not root.
+
+    Pass a list when an argument may contain spaces (for example a label),
+    a string is split like a shell would do.
+    """
+    argv = shlex.split(cmd) if isinstance(cmd, str) else [str(a) for a in cmd]
     if UID != 0:
-        cmd = f"sudo {cmd}"
-    return shlex.split(cmd)
+        argv = ["sudo"] + argv
+    return argv
 
 
 def validate_handle(handle: str) -> str:

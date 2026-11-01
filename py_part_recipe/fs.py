@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 import os
+import shlex
 import subprocess
 from typing import Union
 
@@ -57,7 +58,14 @@ class ExtOps(FsOps):
         self.block_size = block_size
 
     def make_fs(self):
-        command = f"{self.command} -b {self.block_size} -L {self.label} {self.device}"
+        command = [
+            self.command,
+            "-b",
+            str(self.block_size),
+            "-L",
+            self.label,
+            self.device,
+        ]
         subprocess_command = gen_cmd_for_subprocess(command)
         result: subprocess.CompletedProcess = subprocess.run(
             subprocess_command,
@@ -65,7 +73,8 @@ class ExtOps(FsOps):
         )
         if result.returncode != 0:
             raise FormatError(
-                f"Command : {command} Failed ({result.returncode}). {str(result)}"
+                f"Command : {shlex.join(command)} Failed ({result.returncode}). "
+                f"{str(result)}"
             )
 
 
@@ -99,7 +108,7 @@ class FatOps(FsOps):
         if not label:
             label = device.split("/")[-1][:11]
         label = str(label)[:11]
-        label = label.translate({ord(c): "_" for c in " !@#$%^&*()[]{};:,./<>?\|`~-=+"})
+        label = label.translate({ord(c): "_" for c in r" !@#$%^&*()[]{};:,./<>?\|`~-=+"})
         if not os.path.exists(device):
             raise ValueError("None existent device device")
         self.device = device
@@ -107,7 +116,14 @@ class FatOps(FsOps):
         self.fat_type = fat_type
 
     def make_fs(self):
-        command = f"mkfs.fat -F {self.fat_type} -n {self.label} {self.device}"
+        command = [
+            "mkfs.fat",
+            "-F",
+            str(self.fat_type),
+            "-n",
+            self.label,
+            self.device,
+        ]
         subprocess_command = gen_cmd_for_subprocess(command)
         result: subprocess.CompletedProcess = subprocess.run(
             subprocess_command,
@@ -115,7 +131,8 @@ class FatOps(FsOps):
         )
         if result.returncode != 0:
             raise FormatError(
-                f"Command : {command} Failed ({result.returncode}). {str(result)}"
+                f"Command : {shlex.join(command)} Failed ({result.returncode}). "
+                f"{str(result)}"
             )
 
 
