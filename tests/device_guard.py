@@ -23,7 +23,9 @@ from typing import Any, Iterable
 
 import parted
 
-TEST_LOOP_NUMBERS = range(100, 107)
+# 100 to 106 are the devices of the tests, big enough to apply the example
+# recipe; 120 and 121 stay small, the tests of the sizes need exact geometries
+TEST_LOOP_NUMBERS = (*range(100, 107), 120, 121)
 TEST_LOOPS = [f"loop{number}" for number in TEST_LOOP_NUMBERS]
 BACKING_DIRECTORY = "/tmp"
 
@@ -31,7 +33,12 @@ BACKING_DIRECTORY = "/tmp"
 # the test loop devices and their partitions, the md arrays md100 to md199,
 # and the volume groups (and logical volumes) named vg_test*.
 ALLOWED_DEVICE_RE = re.compile(
-    r"^/dev/(" r"loop10[0-6](p\d+)?" r"|md1\d\d" r"|vg_test[\w-]*(/[\w-]+)?" r")$"
+    r"^/dev/("
+    r"loop(10[0-6]|12[01])(p\d+)?"
+    r"|md1\d\d"
+    r"|vg_test[\w-]*(/[\w-]+)?"
+    r"|mapper/vg_test[\w-]*"
+    r")$"
 )
 HARMLESS_DEVICES = ("/dev/null", "/dev/zero")
 # dmsetup works on device mapper names (vg-lv), not on /dev paths: only the
@@ -56,7 +63,7 @@ def check_device_path(path: Any, origin: str):
         return
     raise DeviceGuardError(
         f"{origin}: refusing to use {path}, tests may only use the loop "
-        "devices /dev/loop100-106, md arrays /dev/md100-199 and vg_test* "
+        "devices /dev/loop100-106 and 120-121, md arrays /dev/md100-199 and vg_test* "
         "volume groups"
     )
 

@@ -6,11 +6,21 @@ import pytest
 import device_guard
 from device_guard import DeviceGuardError
 
-FORBIDDEN = ("/dev/sda", "/dev/nvme0n1p1", "/dev/loop0", "/dev/loop107", "/dev/md0")
+FORBIDDEN = (
+    "/dev/sda",
+    "/dev/nvme0n1p1",
+    "/dev/loop0",
+    "/dev/loop107",
+    "/dev/loop119",
+    "/dev/loop122",
+    "/dev/md0",
+)
 ALLOWED = (
     "/dev/loop100",
     "/dev/loop106p1",
     "/dev/md100",
+    "/dev/loop120",
+    "/dev/loop121p2",
     "/dev/md199",
     "/dev/vg_test",
     "/dev/vg_test/lv_test",

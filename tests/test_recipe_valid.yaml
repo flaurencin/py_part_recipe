@@ -1,13 +1,13 @@
 0:
   - type: gpt
     model: Loopback device
-    path: /dev/loop100
+    path: /dev/loop120
     physicalSectorSize: 512
     sectorSize: 512
     length: 80000
     partitions_before:
     - active: true
-      path: /dev/loop100p1
+      path: /dev/loop120p1
       number: 1
       geometry:
         start: 2048
@@ -15,7 +15,7 @@
         length: 4
       flags: raid
     - active: true
-      path: /dev/loop100p2
+      path: /dev/loop120p2
       number: 2
       geometry:
         start: 2052
@@ -24,7 +24,7 @@
       flags: raid
     partitions_after:
     - active: true
-      path: /dev/loop100p1
+      path: /dev/loop120p1
       number: 1
       geometry:
         start: 2048
@@ -32,7 +32,7 @@
         length: 4
       flags: raid
     - active: true
-      path: /dev/loop100p2
+      path: /dev/loop120p2
       number: 2
       geometry:
         start: 2052
@@ -40,7 +40,7 @@
         length: 4
       flags: raid
     - active: true
-      path: /dev/loop100p3
+      path: /dev/loop120p3
       number: 3
       geometry:
         start: 2056
@@ -48,7 +48,7 @@
         length: 4096
       flags: raid
     - active: true
-      path: /dev/loop100p4
+      path: /dev/loop120p4
       number: 4
       geometry:
         start: 6152
@@ -57,13 +57,13 @@
       flags: raid
   - type: gpt
     model: Loopback device
-    path: /dev/loop101
+    path: /dev/loop121
     physicalSectorSize: 512
     sectorSize: 512
     length: 80000
     partitions_before:
     - active: true
-      path: /dev/loop101p1
+      path: /dev/loop121p1
       number: 1
       geometry:
         start: 2048
@@ -71,7 +71,7 @@
         length: 4
       flags: raid
     - active: true
-      path: /dev/loop101p2
+      path: /dev/loop121p2
       number: 2
       geometry:
         start: 2052
@@ -80,7 +80,7 @@
       flags: raid
     partitions_after:
     - active: true
-      path: /dev/loop101p1
+      path: /dev/loop121p1
       number: 1
       geometry:
         start: 2048
@@ -88,7 +88,7 @@
         length: 4
       flags: raid
     - active: true
-      path: /dev/loop101p2
+      path: /dev/loop121p2
       number: 2
       geometry:
         start: 2052
@@ -96,7 +96,7 @@
         length: 4
       flags: raid
     - active: true
-      path: /dev/loop101p3
+      path: /dev/loop121p3
       number: 3
       geometry:
         start: 2056
@@ -104,7 +104,7 @@
         length: 4096
       flags: raid
     - active: true
-      path: /dev/loop101p4
+      path: /dev/loop121p4
       number: 4
       geometry:
         start: 6152
@@ -114,13 +114,13 @@
 1:
   - type: gpt
     model: Loopback device
-    path: /dev/loop100
+    path: /dev/loop120
     physicalSectorSize: 512
     sectorSize: 512
     length: 80000
     partitions_before:
     - active: true
-      path: /dev/loop100p1
+      path: /dev/loop120p1
       number: 1
       geometry:
         start: 2048
@@ -128,7 +128,7 @@
         length: 4
       flags: raid
     - active: true
-      path: /dev/loop100p2
+      path: /dev/loop120p2
       number: 2
       geometry:
         start: 2052
@@ -137,7 +137,7 @@
       flags: raid
     partitions_after:
     - active: true
-      path: /dev/loop100p1
+      path: /dev/loop120p1
       number: 1
       geometry:
         start: 2048
@@ -145,7 +145,7 @@
         length: 4
       flags: raid
     - active: true
-      path: /dev/loop100p2
+      path: /dev/loop120p2
       number: 2
       geometry:
         start: 2052
@@ -153,7 +153,7 @@
         length: 4
       flags: raid
     - active: true
-      path: /dev/loop100p3
+      path: /dev/loop120p3
       number: 3
       geometry:
         start: 2056
@@ -161,7 +161,7 @@
         length: 38955
       flags: raid
     - active: true
-      path: /dev/loop100p4
+      path: /dev/loop120p4
       number: 4
       geometry:
         start: 41011
@@ -170,13 +170,13 @@
       flags: raid
   - type: gpt
     model: Loopback device
-    path: /dev/loop101
+    path: /dev/loop121
     physicalSectorSize: 512
     sectorSize: 512
     length: 80000
     partitions_before:
     - active: true
-      path: /dev/loop101p1
+      path: /dev/loop121p1
       number: 1
       geometry:
         start: 2048
@@ -184,7 +184,7 @@
         length: 4
       flags: raid
     - active: true
-      path: /dev/loop101p2
+      path: /dev/loop121p2
       number: 2
       geometry:
         start: 2052
@@ -193,7 +193,7 @@
       flags: raid
     partitions_after:
     - active: true
-      path: /dev/loop101p1
+      path: /dev/loop121p1
       number: 1
       geometry:
         start: 2048
@@ -201,7 +201,7 @@
         length: 4
       flags: raid
     - active: true
-      path: /dev/loop101p2
+      path: /dev/loop121p2
       number: 2
       geometry:
         start: 2052
@@ -209,7 +209,7 @@
         length: 4
       flags: raid
     - active: true
-      path: /dev/loop101p3
+      path: /dev/loop121p3
       number: 3
       geometry:
         start: 2056
@@ -217,7 +217,7 @@
         length: 38955
       flags: raid
     - active: true
-      path: /dev/loop101p4
+      path: /dev/loop121p4
       number: 4
       geometry:
         start: 41011
@@ -227,13 +227,13 @@
 2:
   - type: gpt
     model: Loopback device
-    path: /dev/loop100
+    path: /dev/loop120
     physicalSectorSize: 512
     sectorSize: 512
     length: 80000
     partitions_before:
     - active: true
-      path: /dev/loop100p1
+      path: /dev/loop120p1
       number: 1
       geometry:
         start: 2048
@@ -241,7 +241,7 @@
         length: 4
       flags: raid
     - active: true
-      path: /dev/loop100p2
+      path: /dev/loop120p2
       number: 2
       geometry:
         start: 2052
@@ -250,7 +250,7 @@
       flags: raid
     partitions_after:
     - active: true
-      path: /dev/loop100p1
+      path: /dev/loop120p1
       number: 1
       geometry:
         start: 2048
@@ -258,7 +258,7 @@
         length: 4096
       flags: raid
     - active: true
-      path: /dev/loop100p2
+      path: /dev/loop120p2
       number: 2
       geometry:
         start: 6144
@@ -267,13 +267,13 @@
       flags: raid
   - type: gpt
     model: Loopback device
-    path: /dev/loop101
+    path: /dev/loop121
     physicalSectorSize: 512
     sectorSize: 512
     length: 80000
     partitions_before:
     - active: true
-      path: /dev/loop101p1
+      path: /dev/loop121p1
       number: 1
       geometry:
         start: 2048
@@ -281,7 +281,7 @@
         length: 4
       flags: raid
     - active: true
-      path: /dev/loop101p2
+      path: /dev/loop121p2
       number: 2
       geometry:
         start: 2052
@@ -290,7 +290,7 @@
       flags: raid
     partitions_after:
     - active: true
-      path: /dev/loop101p1
+      path: /dev/loop121p1
       number: 1
       geometry:
         start: 2048
@@ -298,7 +298,7 @@
         length: 4096
       flags: raid
     - active: true
-      path: /dev/loop101p2
+      path: /dev/loop121p2
       number: 2
       geometry:
         start: 6144
@@ -308,13 +308,13 @@
 3:
   - type: gpt
     model: Loopback device
-    path: /dev/loop100
+    path: /dev/loop120
     physicalSectorSize: 512
     sectorSize: 512
     length: 80000
     partitions_before:
     - active: true
-      path: /dev/loop100p1
+      path: /dev/loop120p1
       number: 1
       geometry:
         start: 2048
@@ -322,7 +322,7 @@
         length: 4
       flags: raid
     - active: true
-      path: /dev/loop100p2
+      path: /dev/loop120p2
       number: 2
       geometry:
         start: 2052
@@ -331,7 +331,7 @@
       flags: raid
     partitions_after:
     - active: true
-      path: /dev/loop100p1
+      path: /dev/loop120p1
       number: 1
       geometry:
         start: 2048
@@ -339,7 +339,7 @@
         length: 38959
       flags: raid
     - active: true
-      path: /dev/loop100p2
+      path: /dev/loop120p2
       number: 2
       geometry:
         start: 41007
@@ -348,13 +348,13 @@
       flags: raid
   - type: gpt
     model: Loopback device
-    path: /dev/loop101
+    path: /dev/loop121
     physicalSectorSize: 512
     sectorSize: 512
     length: 80000
     partitions_before:
     - active: true
-      path: /dev/loop101p1
+      path: /dev/loop121p1
       number: 1
       geometry:
         start: 2048
@@ -362,7 +362,7 @@
         length: 4
       flags: raid
     - active: true
-      path: /dev/loop101p2
+      path: /dev/loop121p2
       number: 2
       geometry:
         start: 2052
@@ -371,7 +371,7 @@
       flags: raid
     partitions_after:
     - active: true
-      path: /dev/loop101p1
+      path: /dev/loop121p1
       number: 1
       geometry:
         start: 2048
@@ -379,7 +379,7 @@
         length: 38959
       flags: raid
     - active: true
-      path: /dev/loop101p2
+      path: /dev/loop121p2
       number: 2
       geometry:
         start: 41007
@@ -389,13 +389,13 @@
 4:
   - type: gpt
     model: Loopback device
-    path: /dev/loop100
+    path: /dev/loop120
     physicalSectorSize: 512
     sectorSize: 512
     length: 80000
     partitions_before:
     - active: true
-      path: /dev/loop100p1
+      path: /dev/loop120p1
       number: 1
       geometry:
         start: 2048
@@ -403,7 +403,7 @@
         length: 4
       flags: raid
     - active: true
-      path: /dev/loop100p2
+      path: /dev/loop120p2
       number: 2
       geometry:
         start: 2052
@@ -412,7 +412,7 @@
       flags: raid
     partitions_after:
     - active: true
-      path: /dev/loop100p1
+      path: /dev/loop120p1
       number: 1
       geometry:
         start: 2048
@@ -420,7 +420,7 @@
         length: 20480
       flags: boot, esp
     - active: true
-      path: /dev/loop100p2
+      path: /dev/loop120p2
       number: 2
       geometry:
         start: 22528
@@ -428,7 +428,7 @@
         length: 28719
       flags: raid
     - active: true
-      path: /dev/loop100p3
+      path: /dev/loop120p3
       number: 3
       geometry:
         start: 51247
@@ -437,13 +437,13 @@
       flags: raid
   - type: gpt
     model: Loopback device
-    path: /dev/loop101
+    path: /dev/loop121
     physicalSectorSize: 512
     sectorSize: 512
     length: 80000
     partitions_before:
     - active: true
-      path: /dev/loop101p1
+      path: /dev/loop121p1
       number: 1
       geometry:
         start: 2048
@@ -451,7 +451,7 @@
         length: 4
       flags: raid
     - active: true
-      path: /dev/loop101p2
+      path: /dev/loop121p2
       number: 2
       geometry:
         start: 2052
@@ -460,7 +460,7 @@
       flags: raid
     partitions_after:
     - active: true
-      path: /dev/loop101p1
+      path: /dev/loop121p1
       number: 1
       geometry:
         start: 2048
@@ -468,7 +468,7 @@
         length: 20480
       flags: boot, esp
     - active: true
-      path: /dev/loop101p2
+      path: /dev/loop121p2
       number: 2
       geometry:
         start: 22528
@@ -476,7 +476,7 @@
         length: 28719
       flags: raid
     - active: true
-      path: /dev/loop101p3
+      path: /dev/loop121p3
       number: 3
       geometry:
         start: 51247

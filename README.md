@@ -405,13 +405,21 @@ md0.build()
 
 ### Test environment
 
-The tests operate on real loop devices (`/dev/loop100`…`/dev/loop106`), so
-they need root privileges and system packages. `pretest.sh` sets this up on
-Debian/Ubuntu: it installs packages, creates the loop devices (sparse files in
-`/tmp`; `/dev/loop106` is 512 MB so `xfs` and `btrfs` can be formatted, and
-it is grown if it already exists), allows the needed commands in sudoers and
-runs `uv sync` (uv must be installed, and available in the `PATH` of whoever
-runs the script).
+The tests operate on real loop devices, so they need root privileges and
+system packages. `pretest.sh` sets this up on Debian/Ubuntu: it installs
+packages, creates the loop devices (sparse files in `/tmp`, grown if they
+already exist), allows the needed commands in sudoers and runs `uv sync` (uv
+must be installed, and available in the `PATH` of whoever runs the script).
+
+- `/dev/loop100`…`/dev/loop106` are 512 MB: enough to apply
+  `examples/example_recipe.yml` (which uses exactly these seven disks) and to
+  format `xfs` and `btrfs`.
+- `/dev/loop120` and `/dev/loop121` are 40 MB. The tests of the partition
+  sizes assert exact geometries of such disks.
+
+Applying the example by hand on the test devices works, but the tests wipe
+`loop100`–`102` and need the md and volume group names of the tests: undo the
+example (`umount`, then `wipe_disk` on each disk) before running them.
 
 ```bash
 bash pretest.sh
@@ -426,12 +434,12 @@ uv run pytest
 The tests destroy the devices they use, so they are guarded
 (`tests/device_guard.py`, `tests/conftest.py`):
 
-- They refuse to start if `/dev/loop100`–`106` are not backed by
-  `/tmp/loopN`, or if an md array `md1NN` or a volume group `vg_test*` already
+- They refuse to start if `/dev/loop100`–`106` and `120`–`121` are not backed
+  by `/tmp/loopN`, or if an md array `md1NN` or a volume group `vg_test*` already
   exists, because the tests clean those up by name.
 - Every program the tests run, every `parted` device and every write open of a
-  `/dev` file is checked first. Only `/dev/loop100`–`106` (and their
-  partitions), `/dev/md100`–`199` and `vg_test*` volume groups are accepted;
+  `/dev` file is checked first. Only `/dev/loop100`–`106` and `120`–`121` (and
+  their partitions), `/dev/md100`–`199` and `vg_test*` volume groups are accepted;
   anything else raises an error before anything happens. The real commands
   still run, only their arguments are checked.
 

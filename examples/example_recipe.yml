@@ -1,3 +1,7 @@
+# Seven disks, as loop devices: /dev/loop100 to /dev/loop106, 512 MB or more
+# each (pretest.sh creates them). The first groups are RAID 1 members, the last
+# disk holds /boot and the swap. A recipe is read with load_recipe() or
+#   py-part-recipe validate examples/example_recipe.yml
 partitioning:
   - devices:
       - /dev/loop100

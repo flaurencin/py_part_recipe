@@ -69,9 +69,12 @@ if [ -n "$group_added" ]; then
     exit 0
 fi
 # sizes of the test devices, sparse files: nothing is really allocated.
-# loop106 is used to test file systems with a minimum size (xfs, btrfs)
-declare -A device_sizes=([loop106]=512M)
-for block_dev in loop100 loop101 loop102 loop103 loop104 loop105 loop106; do
+# loop100 to loop106 are big enough to apply examples/example_recipe.yml and to
+# format xfs and btrfs (loop106); loop120 and loop121 stay small (the default),
+# the tests of the sizes assert exact geometries of such disks
+declare -A device_sizes=([loop100]=512M [loop101]=512M [loop102]=512M
+    [loop103]=512M [loop104]=512M [loop105]=512M [loop106]=512M)
+for block_dev in loop100 loop101 loop102 loop103 loop104 loop105 loop106 loop120 loop121; do
     size=${device_sizes[$block_dev]:-40000K}
     if [ ! -e "/dev/$block_dev" ]; then
         printf "%b" "building test block device /dev/$block_dev from /tmp/$block_dev\n"

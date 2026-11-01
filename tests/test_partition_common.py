@@ -60,14 +60,14 @@ def setup_partialy_used_disk(disk: str):
     "device,expected_nb_block,expected_block_size",
     (
         (
-            "/dev/loop100",
+            "/dev/loop120",
             80_000 - 2_048 - 33,
             512,
         ),
     ),
 )
 def test_BlockDevice_on_clean_drive(
-    device: Literal["/dev/loop100"],
+    device: Literal["/dev/loop120"],
     expected_nb_block: Literal[77919],
     expected_block_size: Literal[512],
 ):
@@ -81,14 +81,14 @@ def test_BlockDevice_on_clean_drive(
     "device,expected_nb_block,expected_block_size",
     (
         (
-            "/dev/loop100",
+            "/dev/loop120",
             80_000 - 2_056 - 33,
             512,
         ),
     ),
 )
 def test_BlockDevice_on_used_drive(
-    device: Literal["/dev/loop100"],
+    device: Literal["/dev/loop120"],
     expected_nb_block: Literal[77911],
     expected_block_size: Literal[512],
 ):
@@ -141,7 +141,7 @@ def test_raise_convert_size_to_bytes(
     "devices,partition_requests,expected_disk_dict",
     (
         (
-            ["/dev/loop100", "/dev/loop101"],
+            ["/dev/loop120", "/dev/loop121"],
             [
                 PartitionRequest(
                     handle="patitions_1",
@@ -163,7 +163,7 @@ def test_raise_convert_size_to_bytes(
             0,
         ),
         (
-            ["/dev/loop100", "/dev/loop101"],
+            ["/dev/loop120", "/dev/loop121"],
             [
                 PartitionRequest(
                     handle="patitions_1",
@@ -185,7 +185,7 @@ def test_raise_convert_size_to_bytes(
             1,
         ),
         (
-            ["/dev/loop100", "/dev/loop101"],
+            ["/dev/loop120", "/dev/loop121"],
             [
                 PartitionRequest(
                     handle="patitions_1",
@@ -207,7 +207,7 @@ def test_raise_convert_size_to_bytes(
             0,
         ),
         (
-            ["/dev/loop100", "/dev/loop101"],
+            ["/dev/loop120", "/dev/loop121"],
             [
                 PartitionRequest(
                     handle="patitions_1",
@@ -253,7 +253,7 @@ def test_recipe_valid_same_partitions_keep_existing(
     "devices,partition_requests,expected_disk_dict",
     (
         (
-            ["/dev/loop100", "/dev/loop101"],
+            ["/dev/loop120", "/dev/loop121"],
             [
                 PartitionRequest(
                     "patitions_1",
@@ -275,7 +275,7 @@ def test_recipe_valid_same_partitions_keep_existing(
             2,
         ),
         (
-            ["/dev/loop100", "/dev/loop101"],
+            ["/dev/loop120", "/dev/loop121"],
             [
                 PartitionRequest(
                     "patitions_1",
@@ -297,7 +297,7 @@ def test_recipe_valid_same_partitions_keep_existing(
             3,
         ),
         (
-            ["/dev/loop100", "/dev/loop101"],
+            ["/dev/loop120", "/dev/loop121"],
             [
                 PartitionRequest(
                     "patitions_1",
@@ -319,7 +319,7 @@ def test_recipe_valid_same_partitions_keep_existing(
             2,
         ),
         (
-            ["/dev/loop100", "/dev/loop101"],
+            ["/dev/loop120", "/dev/loop121"],
             [
                 PartitionRequest(
                     "patitions_1",
@@ -392,7 +392,7 @@ def test_partition_request_normal_partition():
 
 
 def test_keep_partitions_refuses_non_gpt_table():
-    device = "/dev/loop100"
+    device = "/dev/loop120"
     ped_disk = parted.freshDisk(parted.Device(device), "msdos")
     ped_disk.commitToDevice()
     try:
@@ -406,7 +406,7 @@ def test_keep_partitions_refuses_non_gpt_table():
 
 def test_handled_partitions_str_by_handle():
     # mapping only, nothing is written to the disks
-    devices = ["/dev/loop100", "/dev/loop101"]
+    devices = ["/dev/loop120", "/dev/loop121"]
     requests = [
         PartitionRequest("part_a", "2MiB", "5MiB", 100, flags=["raid"]),
         PartitionRequest("part_b", "4MiB", "10MiB", 100, flags=["raid"]),

@@ -163,11 +163,9 @@ def test_failure_after_the_volumes_are_built(disks):
 
 def test_not_enough_space_writes_nothing():
     def too_big(data):
-        data["partitioning"][0]["recipe"]["partitions"][0]["min_size"] = "30 MiB"
-        data["partitioning"][0]["recipe"]["partitions"][0]["max_size"] = "30 MiB"
-        data["partitioning"][0]["recipe"]["partitions"].append(
-            {"handle": "more", "min_size": "30 MiB", "max_size": "30 MiB", "weight": 1}
-        )
+        # more than any disk of the tests
+        data["partitioning"][0]["recipe"]["partitions"][0]["min_size"] = "100 GiB"
+        data["partitioning"][0]["recipe"]["partitions"][0]["max_size"] = "100 GiB"
 
     before = [signatures(disk) for disk in DISKS]
     with pytest.raises(ApplyError) as excinfo:
