@@ -352,7 +352,7 @@ class Partitionner:
     def _serializable_mapping(self, by_handle=False):
         if by_handle:
             data = {
-                handle: [partition_to_dict(part for part in parts)]
+                handle: [partition_to_dict(part) for part in parts]
                 for handle, parts in self.created_parttions_by_handle.items()
             }
             return data

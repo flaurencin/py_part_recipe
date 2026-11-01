@@ -5,6 +5,7 @@ import parted
 import yaml
 from py_part_recipe.partition_common import (
     BlockDevice,
+    HandledPartitions,
     PartitionRequest,
     Partitionner,
     Recipe,
@@ -361,3 +362,20 @@ def test_recipe_valid_same_partitions_flush_existing(
         default_flow_style=False,
         sort_keys=False,
     )
+
+
+def test_handled_partitions_str_by_handle():
+    # mapping only, nothing is written to the disks
+    devices = ["/dev/loop100", "/dev/loop101"]
+    requests = [
+        PartitionRequest("part_a", "2MiB", "5MiB", 100, flags=["raid"]),
+        PartitionRequest("part_b", "4MiB", "10MiB", 100, flags=["raid"]),
+    ]
+    handled_parts = HandledPartitions([Partitionner(Recipe(devices, requests))])
+    handled_parts.create_partitions_mapping()
+    data = yaml.safe_load(str(handled_parts))
+    assert sorted(data) == ["part_a", "part_b"]
+    for handle in data:
+        assert [part["path"] for part in data[handle]] == [
+            f"{device}p{1 if handle == 'part_a' else 2}" for device in devices
+        ]
