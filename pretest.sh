@@ -87,7 +87,7 @@ done
 
 printf "%b" "\nLet's get sure you can run some commands using sudo\nwith no password.\n"
 printf "%b" "${bold}  essentials :${reset} raid and partx\n"
-cmds=("mdadm" "partx" "wipefs" "dmsetup")
+cmds=("mdadm" "partx" "wipefs" "dmsetup" "blkid")
 ensure_command cmds
 raid_cmds=("${valid_paths[@]}")
 printf "%b" "${bold}  Linux lvm  :${reset}

@@ -40,17 +40,6 @@ def layout(devices, wipe: bool, requests=None) -> HandledPartitions:
 
 
 @pytest.fixture
-def clean_disks():
-    """Start and finish with disks having nothing on them."""
-    disks = ["/dev/loop100", "/dev/loop101"]
-    for disk in disks:
-        wipe_disk(disk)
-    yield disks
-    for disk in disks:
-        wipe_disk(disk)
-
-
-@pytest.fixture
 def ext4_image(tmp_path):
     """The bytes of a small ext4 file system, made in a regular file."""
     image = tmp_path / "ext4.img"

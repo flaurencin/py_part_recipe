@@ -283,12 +283,12 @@ class Partitionner:
     def __init__(self, recipe: Recipe):
         self.recipe = recipe
         self.disks: List[parted.Disk] = []
-        self.created_partitions_per_dev: Dict[
-            str, List[parted.Partition]
-        ] = defaultdict(list)
-        self.created_parttions_by_handle: Dict[
-            str, List[parted.Partition]
-        ] = defaultdict(list)
+        self.created_partitions_per_dev: Dict[str, List[parted.Partition]] = (
+            defaultdict(list)
+        )
+        self.created_parttions_by_handle: Dict[str, List[parted.Partition]] = (
+            defaultdict(list)
+        )
 
     def _figure_out_partitions(self):
         block_chunks = [
@@ -424,6 +424,14 @@ class HandledPartitions:
             part.commit()
         self.saved = True
         self.committed_to_os = True
+
+    def partitions_by_handle(self) -> Dict[str, List[parted.Partition]]:
+        """Every created partition, by handle, one per device."""
+        by_handle: Dict[str, List[parted.Partition]] = {}
+        for partitionner in self.partitionners:
+            for handle, parts in partitionner.created_parttions_by_handle.items():
+                by_handle.setdefault(handle, []).extend(parts)
+        return by_handle
 
     def get_partitions_by_handle(self, handle: str) -> List[parted.Partition]:
         partitions: List[parted.partitions] = []
