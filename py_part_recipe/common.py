@@ -3,7 +3,7 @@ import os
 import shlex
 from typing import List
 
-HANDLE_RE = re.compile(r"^[a-zA-z0-9_-]+$")
+HANDLE_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
 UID = os.getuid()
 
 
@@ -16,5 +16,5 @@ def gen_cmd_for_subprocess(cmd: str) -> List[str]:
 def validate_handle(handle: str) -> str:
     handle = str(handle).strip()
     if not HANDLE_RE.match(handle):
-        raise ValueError("Handle string must match '^[a-zA-z0-9_-]+$' pattern")
+        raise ValueError("Handle string must match '^[a-zA-Z0-9_-]+$' pattern")
     return handle
