@@ -21,10 +21,14 @@ the device is busy and wiping fails with a WipeError.
 
 import os
 import subprocess
+import time
 
 from py_part_recipe.common import gen_cmd_for_subprocess
 
 SYS_CLASS_BLOCK = "/sys/class/block"
+# the kernel can briefly refuse to drop a partition udev is looking at
+FORGET_ATTEMPTS = 20
+FORGET_DELAY = 0.25
 
 
 class WipeError(Exception): ...
@@ -89,25 +93,67 @@ def release(name: str):
         _stop(holder)
 
 
+def settle():
+    """Wait for udev to be done with the events of the devices just changed.
+
+    Writing to a device makes udev probe it again, and a device it is probing
+    can not be removed: wait for it when the tool is there.
+    """
+    try:
+        subprocess.run(["udevadm", "settle", "--timeout=10"], capture_output=True)
+    except OSError:
+        pass
+
+
+def _partition_numbers(name: str) -> list[int]:
+    numbers = []
+    for partition in partitions_of(name):
+        try:
+            with open(
+                os.path.join(_sys_dir(partition), "partition"), encoding="utf-8"
+            ) as number:
+                numbers.append(int(number.read()))
+        except FileNotFoundError:
+            pass  # removed since it was listed
+    return numbers
+
+
 def forget_partitions(device: str):
     """Tell the kernel the disk has no partition anymore.
 
     Erasing the partition table makes the kernel drop the partitions on most
     disks, but not on devices that do not scan their partitions, like loop
     devices set up without it: they would stay listed until someone says so.
+
+    The kernel refuses to drop a partition while udev is probing it, which
+    happens right after the partition was written to: wait for udev, and try
+    again a few times before giving up.
     """
     name = _block_name(device)
-    numbers = []
-    for partition in partitions_of(name):
-        with open(
-            os.path.join(_sys_dir(partition), "partition"), encoding="utf-8"
-        ) as number:
-            numbers.append(int(number.read()))
-    if not numbers:
-        return
-    _run(["partx", "--delete", "--nr", f"{min(numbers)}:{max(numbers)}", device])
-    if partitions_of(name):
-        raise WipeError(f"The kernel still lists partitions of {device}")
+    error = ""
+    for _ in range(FORGET_ATTEMPTS):
+        settle()
+        numbers = _partition_numbers(name)
+        if not numbers:
+            return
+        result = subprocess.run(
+            gen_cmd_for_subprocess(
+                [
+                    "partx",
+                    "--delete",
+                    "--nr",
+                    f"{min(numbers)}:{max(numbers)}",
+                    device,
+                ]
+            ),
+            capture_output=True,
+        )
+        error = result.stderr.decode("utf-8", errors="replace").strip()
+        if result.returncode == 0 and not _partition_numbers(name):
+            return
+        time.sleep(FORGET_DELAY)
+    if _partition_numbers(name):
+        raise WipeError(f"The kernel still lists partitions of {device}. {error}")
 
 
 def wipe_disk(device: str):
