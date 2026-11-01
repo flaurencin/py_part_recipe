@@ -12,7 +12,21 @@ applies it with `libparted`, `mdadm`, LVM tools and `mkfs.*`.
 
 > **Warning:** this software repartitions and formats block devices. Wrong
 > input destroys data. Use it on disposable disks or loop devices until it
-> matures.
+> matures. See [Responsibility and failure handling](#responsibility-and-failure-handling).
+
+## Design choices
+
+- **GPT only.** This is a modern tool: MBR/msdos tables, and the extended and
+  logical partitions that go with them, are not supported.
+- **Two steps.** A recipe is first *parsed and validated* without touching any
+  disk, then *applied*. (The loader is not written yet, see
+  [Project status](#project-status).)
+- **It never mounts anything and never activates swap.** The tool lays out and
+  formats storage. The `mount` / `install_mount` fields of `file_systems` are
+  information for a system deployment tool, which does the mounting. Swap
+  space can be formatted (`mkswap`) but is never activated (`swapon`).
+- **`format: false` leaves the volume untouched**, for example when a
+  partition already holds data.
 
 ## Concepts
 
@@ -53,7 +67,9 @@ partitioning:
   largest sector size are used so all disks get identical geometry.
 - **Reserved areas**: the first 2048 sectors and last 33 sectors are not used.
   With `keep_partitions`, the largest free region is used instead.
-- **Partition table**: `gpt` (default) or `msdos`.
+- **Partition table**: always `gpt`. With `keep_partitions`, a disk that
+  already has a different table type is refused. Only `normal` partitions
+  exist (`p_type: normal`).
 - **Flags**: any `libparted` flag by name (`raid`, `boot`, `swap`, `esp`, …).
 
 ### Volumes
@@ -73,6 +89,26 @@ handle (one per disk, in device order) are active members and spares.
 Implemented formatters (`fs.py`): `ext2`, `ext3`, `ext4` (`mkfs.ext*`, block
 size 1024/2048/4096, label truncated to 16 chars) and `fat16`, `fat32`
 (`mkfs.fat`, label sanitised to 11 chars).
+
+## Responsibility and failure handling
+
+Applying a recipe is **destructive and not transactional**. The tool does not
+undo anything:
+
+- If a stage fails (partitioning, RAID, LVM, formatting), it stops and reports
+  the error. Everything created by the earlier stages stays in place:
+  partition tables, RAID arrays, volume groups, file systems.
+- Cleaning up, or deciding to re-run on a partly built layout, is up to the
+  caller.
+- Nothing checks whether a disk is mounted or holds data you care about.
+
+So:
+
+- **Command line users** must check the recipe and the target devices before
+  applying it, and be ready to clean up after a failure.
+- **Developers using the library** must handle exceptions from each stage and
+  decide what to do with the partial result. The tool does not make that
+  decision for them.
 
 ## Requirements
 
@@ -112,7 +148,7 @@ reqs = [PartitionRequest(handle="parts_md0", min_size="20 MiB",
 recipe = Recipe(devices_names=["/dev/loop100", "/dev/loop101"],
                 part_requests=reqs)
 
-parts = HandledPartitions([Partitionner(recipe, table_type="gpt")])
+parts = HandledPartitions([Partitionner(recipe)])
 parts.create_partitions_mapping()   # compute and stage in memory
 print(parts)                        # review the planned layout
 parts.commit()                      # write tables + notify the kernel
@@ -149,14 +185,17 @@ keep modes), and RAID/LVM volume creation. Lint/format with `ruff` and `black`.
 
 Done:
 - Weighted partition sizing with block alignment
-- GPT/msdos partitioning on multiple identical disks, optional keep-existing mode
+- GPT partitioning on multiple identical disks, optional keep-existing mode
 - Raw, RAID and LVM (VG/LV) volumes
 - ext2/3/4 and FAT16/32 formatting
 
 Not yet done (see `examples/example_recipe.yml` for the intended format):
 - YAML recipe parsing/validation and a CLI entry point
-- Mounting, swap, and other file systems (`xfs`, `btrfs`, …) listed in `pretest.sh`
-- Dry-run/rollback, teardown, and resize operations
+- Other file systems (`xfs`, `btrfs`, …) and formatting swap space (`mkswap`)
+- Dry run, teardown, and resize operations
+
+Out of scope by design: mounting file systems, activating swap, and rolling
+back a failed run (see below).
 
 ## License
 
