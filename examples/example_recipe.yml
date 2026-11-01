@@ -4,7 +4,7 @@ partitioning:
       - /dev/loop101
       - /dev/loop102
     recipe:
-      keep_partitions :
+      keep_partitions: false
       partitions:
         - min_size: 2 MiB
           max_size: 5 MiB
@@ -29,8 +29,7 @@ partitioning:
       - /dev/loop104
       - /dev/loop105
     recipe:
-      keep_partitions :
-      partitions:
+      keep_partitions: false
       partitions:
         - min_size: 20 MiB
           max_size: 200 MiB
@@ -47,7 +46,7 @@ partitioning:
   - devices:
       - /dev/loop106
     recipe:
-      keep_partitions :
+      keep_partitions: false
       partitions:
         - min_size: 20 MiB
           max_size: 51 MiB
@@ -62,106 +61,88 @@ partitioning:
           flags: ["swap"]
           handle: partitions_swap
 volumes:
-  - type: raw
+  - handle: volume_boot
+    type: raw
     params:
       partitions_handle: partitions_boot
-    handle: volume_boot
-  - type: raw
+  - handle: volume_swap
+    type: raw
     params:
       partitions_handle: partitions_swap
-    handle: volume_swap
-  - type: raid
-    params: 
+  - handle: volume_md0
+    type: raid
+    params:
       partitions_handle: partitions_raid_md0
       level: 1
-      dev_indices:
-        - 0
-        - 1
-      spare_indices:
-        - 2
-      metadata: 1.0
-      riad_dev_name: /dev/md30
-    handle: volume_md0
-  - type: raid
-    params: 
+      dev_indices: [0, 1]
+      spare_indices: [2]
+      meta_data: "1.0"
+      raid_dev_name: /dev/md30
+  - handle: volume_md1
+    type: raid
+    params:
       partitions_handle: partitions_raid_md1
       level: 1
-      dev_indices:
-        - 0
-        - 1
-      spare_indices:
-        - 2
-      metadata: 1.0
-      riad_dev_name: /dev/md31
-    handle: volume_md1
-  - type: raid
-    params: 
+      dev_indices: [0, 1]
+      spare_indices: [2]
+      meta_data: "1.0"
+      raid_dev_name: /dev/md31
+  - handle: volume_md2
+    type: raid
+    params:
       partitions_handle: partitions_raid_md2
       level: 1
-      dev_indices:
-        - 0
-        - 1
-      spare_indices:
-        - 2
-      metadata: 1.0
-      riad_dev_name: /dev/md32
-    handle: volume_md2
-  - type: raid
-    params: 
-      partitions_handle: 
-        - partitions_raid_md4
+      dev_indices: [0, 1]
+      spare_indices: [2]
+      meta_data: "1.0"
+      raid_dev_name: /dev/md32
+  - handle: volume_md4
+    type: raid
+    params:
+      partitions_handle: partitions_raid_md4
       level: 1
-      dev_indices:
-        - 0
-        - 1
-      spare_indices:
-        - 2
-      metadata: 1.0
-      riad_dev_name: /dev/md34
-    handle: volume_md4
-  - type: raid
-    params: 
+      dev_indices: [0, 1]
+      spare_indices: [2]
+      meta_data: "1.0"
+      raid_dev_name: /dev/md34
+  - handle: volume_md5
+    type: raid
+    params:
       partitions_handle: partitions_raid_md5
       level: 1
-      dev_indices:
-        - 0
-        - 1
-      spare_indices:
-        - 2
-      metadata: 1.0
-      riad_dev_name: /dev/md35
-    handle: volume_md5
-  - type: volume_group
+      dev_indices: [0, 1]
+      spare_indices: [2]
+      meta_data: "1.0"
+      raid_dev_name: /dev/md35
+  - handle: volume_vg_root
+    type: volume_group
     params:
-      partitions_by_handle: []
-      volumes_by_handle:
+      partitions_handles: []
+      volumes_handles:
         - volume_md1
         - volume_md4
-    handle: volume_vg_root
-  - type: logical_volume
+  - handle: volume_vg_var
+    type: volume_group
     params:
-      partitions_by_handle: []
-      volumes_by_handle:
+      partitions_handles: []
+      volumes_handles:
         - volume_md2
         - volume_md5
-    handle: volume_vg_var
-  - type: logical_volume
+  - handle: volume_lv_root
+    type: logical_volume
     params:
-      volumes_by_handle:
-        - volume_vg_root
-      usage_percent: 60
-    handle: volume_lv_root
-  - type: logical_volume
+      volume_handle: volume_vg_root
+      vg_percent: 60
+  - handle: volume_lv_home
+    type: logical_volume
     params:
-      volumes_by_handle: volume_vg_root
-      usage_percent: 20
-    handle: volume_lv_home
-  - type: logical_volume
+      volume_handle: volume_vg_root
+      vg_percent: 20
+  - handle: volume_lv_var
+    type: logical_volume
     params:
-      volumes_by_handle:
-        - volume_vg_rvar
-      usage_percent: 80
-    handle: volume_lv_var
+      volume_handle: volume_vg_var
+      vg_percent: 80
 file_systems:
   - type: ext4
     format: true
