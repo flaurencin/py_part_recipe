@@ -128,12 +128,11 @@ class RawVolume(PartitionBasedVolume):
         if not partitionners.saved or not partitionners.committed_to_os:
             raise ValueError("Given partitioners have not yet set partitions up")
 
-        self.partition_handle = self.partition_handle
-        _partitions = partitionners.get_partitions_by_handle(self.partition_handle)
+        _partitions = partitionners.get_partitions_by_handle(self.partitions_handle)
         if len(_partitions) != 1:
             raise ValueError(
                 f"Raw Volumes only operates on one partition {len(_partitions)} "
-                f"were found for handle {self._handle}"
+                f"were found for handle {self.partitions_handle}"
             )
         self.partition: parted.Partition = _partitions[0]
         self._built = True
@@ -168,6 +167,11 @@ class RaidVolume(PartitionBasedVolume):
             partitions_handle=partitions_handle,
             handle=handle,
         )
+        if not isinstance(partitions_handle, str) or not partitions_handle:
+            raise ValueError(
+                "Raid volumes need exactly one non empty partitions_handle (str), "
+                f"got {partitions_handle!r}"
+            )
         if not spare_indices:
             self.spare_indices = []
         else:
@@ -185,29 +189,20 @@ class RaidVolume(PartitionBasedVolume):
             raise LookupError(f"Raid Device {self.raid_dev_name} already exists.")
         if not self.partitionners.saved or not self.partitionners.committed_to_os:
             raise ValueError("Given partitioners have not yet set partitions up")
-
-        if not isinstance(self.partitions_handle, list) and not len(
-            self.partitions_handle
-        ):
-            raise ValueError(
-                f"Raw Volumes can only be instanciated with one  partitions_handle"
-                f"but {len(self.partitions_handle)} were given."
-            )
-        self.partition_handle = self.partitions_handle[0]
         self._built = False
 
     def set_meta_data_version(self, meta_data_version: str):
         meta_data_version = str(meta_data_version)
         if meta_data_version not in ("0", "0.90", "1.0", "1", "1.2"):
             raise ValueError(
-                f"You requested meta_data version {self.meta_data_version}, unkown to me."
+                f"You requested meta_data version {meta_data_version}, unknown to me."
             )
         self.meta_data_version = meta_data_version
 
     def set_raid_level(self, raid_level: int):
         if raid_level not in (0, 1, 4, 5, 6, 10):
             raise ValueError(
-                f"You requested raid {self.raid_level} level I don't Know this level"
+                f"You requested raid level {raid_level}, unknown to me."
             )
         self.raid_level = raid_level
 
@@ -239,7 +234,9 @@ class RaidVolume(PartitionBasedVolume):
         )
         if total_expected_devices != total_available_devices:
             raise ValueError(
-                "You expect {total_expected_devices} devices including spares to be cre"
+                f"You expect {total_expected_devices} devices including spares "
+                f"but {total_available_devices} partitions were found for handle "
+                f"{self.partitions_handle}"
             )
 
         self.set_devices()

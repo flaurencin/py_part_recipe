@@ -17,6 +17,7 @@ from py_part_recipe.volume_common import (
     LvmLvVolume,
     LvmVgVolume,
     RaidVolume,
+    RawVolume,
 )
 
 LOGGER = logging.getLogger()
@@ -242,3 +243,70 @@ def test_good_lvm_volume(
         for pv in pv_to_detelete:
             subprocess.run(["sudo", "pvremove", "-f", pv], capture_output=True)
         clean_raid(handled_parts, raid_handles)
+
+
+def test_raw_volume():
+    handled_parts = HandledPartitions([setup_raid_disk(["/dev/loop100"])])
+    make_parts(handled_parts)
+    raw_volume = RawVolume(
+        partitionners=handled_parts, partitions_handle="efi_part", handle="raw_efi"
+    )
+    partition = handled_parts.get_partitions_by_handle("efi_part")[0]
+    assert raw_volume.built
+    assert raw_volume.handle == "raw_efi"
+    assert raw_volume.sys_device == partition.path
+
+
+def test_raw_volume_needs_exactly_one_partition():
+    handled_parts = HandledPartitions(
+        [setup_raid_disk(["/dev/loop100", "/dev/loop101"])]
+    )
+    make_parts(handled_parts)
+    with pytest.raises(ValueError, match="efi_part"):
+        RawVolume(
+            partitionners=handled_parts, partitions_handle="efi_part", handle="raw_efi"
+        )
+
+
+def test_raw_volume_partitions_not_committed():
+    handled_parts = HandledPartitions([setup_raid_disk(["/dev/loop100"])])
+    with pytest.raises(ValueError, match="not yet set"):
+        RawVolume(
+            partitionners=handled_parts, partitions_handle="efi_part", handle="raw_efi"
+        )
+
+
+def raid_kwargs(**overrides):
+    kwargs = dict(
+        raid_dev_name="/dev/md100",
+        level=1,
+        dev_indices=[0, 1],
+        spare_indices=None,
+        partitionners=HandledPartitions([setup_raid_disk(["/dev/loop100"])]),
+        partitions_handle="efi_part",
+        handle="md100_efi",
+    )
+    kwargs.update(overrides)
+    return kwargs
+
+
+@pytest.mark.parametrize("handle", ("", None, ["efi_part"]))
+def test_raid_volume_bad_partitions_handle(handle):
+    with pytest.raises(ValueError, match="partitions_handle"):
+        RaidVolume(**raid_kwargs(partitions_handle=handle))
+
+
+def test_raid_volume_bad_metadata():
+    with pytest.raises(ValueError, match="meta_data version 9"):
+        RaidVolume(**raid_kwargs(meta_data="9"))
+
+
+def test_raid_volume_bad_level():
+    with pytest.raises(ValueError, match="raid level 3"):
+        RaidVolume(**raid_kwargs(level=3))
+
+
+def test_raid_volume_partitions_count_mismatch():
+    # nothing was partitioned, no partition matches the handle
+    with pytest.raises(ValueError, match="You expect 2 devices.*0 partitions"):
+        RaidVolume(**raid_kwargs())
