@@ -1,6 +1,6 @@
 [project]
 name = "py-part-recipe"
-version = "0.1.0"
+version = "0.2.0"
 description = "A partition manager based on yaml recipe for linux"
 readme = "README.md"
 license = { file = "LICENSE" }
