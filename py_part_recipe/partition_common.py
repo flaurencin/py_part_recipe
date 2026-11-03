@@ -120,6 +120,9 @@ def convert_size_to_bytes(size: str):
     return quantity * __exponents[unit]
 
 
+SYS_CLASS_BLOCK = "/sys/class/block"
+
+
 @dataclass
 class BlockDevice:
     path: str
@@ -154,16 +157,16 @@ class BlockDevice:
         if os.path.islink(device):
             device = os.readlink(device)
         device_name = device.strip("/").split("/")[-1]
-        if device_name not in os.listdir("/sys/class/block"):
+        if device_name not in os.listdir(SYS_CLASS_BLOCK):
             raise ValueError(f"Device {device} is not a block device")
         self.dev_name = device_name
-        self.dev_sys_path = os.readlink(f"/sys/class/block/{device_name}")
-        phy_dev_position = self.dev_sys_path.split("/").index("block") + 1
-        partitionable_dev_name = self.dev_sys_path.split("/")[phy_dev_position]
-        physical_device = f"/dev/{partitionable_dev_name}"
-        if physical_device != self.path:
+        self.dev_sys_path = os.path.realpath(os.path.join(SYS_CLASS_BLOCK, device_name))
+        # A partition has a "partition" attribute in sysfs, a whole disk does not.
+        # Do not parse the path: NVMe disks have no ".../block/..." component.
+        if os.path.exists(os.path.join(self.dev_sys_path, "partition")):
             raise ValueError(
-                f"Selected device {self.path} is not a patitionable block device"
+                f"Selected device {self.path} is a partition, "
+                "not a partitionable block device"
             )
 
     def _set_adressable_space(self):

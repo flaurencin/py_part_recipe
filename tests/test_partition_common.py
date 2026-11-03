@@ -1,3 +1,4 @@
+import os
 import logging
 from typing import Any, Literal
 import pytest
@@ -419,3 +420,36 @@ def test_handled_partitions_str_by_handle():
         assert [part["path"] for part in data[handle]] == [
             f"{device}p{1 if handle == 'part_a' else 2}" for device in devices
         ]
+
+
+def _fake_sysfs(tmp_path, monkeypatch, disk_dir, part_dir, disk, part):
+    root = tmp_path / "sys"
+    (root / disk_dir / disk).mkdir(parents=True)
+    (root / disk_dir / disk / part).mkdir()
+    (root / disk_dir / disk / part / "partition").write_text("1\n")
+    cls = tmp_path / "class_block"
+    cls.mkdir()
+    (cls / disk).symlink_to(root / disk_dir / disk)
+    (cls / part).symlink_to(root / disk_dir / disk / part)
+    monkeypatch.setattr("py_part_recipe.partition_common.SYS_CLASS_BLOCK", str(cls))
+    monkeypatch.setattr(
+        "py_part_recipe.partition_common.os.path.exists",
+        lambda p, _e=os.path.exists: True if str(p).startswith("/dev/") else _e(p),
+    )
+
+
+@pytest.mark.parametrize(
+    "disk_dir,disk,part",
+    [
+        ("devices/pci0000:00/0000:00:01.0/nvme/nvme0", "nvme0n1", "nvme0n1p1"),
+        ("devices/pci0000:00/ata1/host0/target0:0:0/0:0:0:0/block", "sda", "sda1"),
+    ],
+)
+def test_BlockDevice_sysfs_disk_vs_partition(
+    tmp_path, monkeypatch, disk_dir, disk, part
+):
+    _fake_sysfs(tmp_path, monkeypatch, disk_dir, part, disk, part)
+    monkeypatch.setattr(BlockDevice, "_set_adressable_space", lambda self: None)
+    assert BlockDevice(f"/dev/{disk}").dev_name == disk
+    with pytest.raises(ValueError, match="is a partition"):
+        BlockDevice(f"/dev/{part}")
