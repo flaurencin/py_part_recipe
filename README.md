@@ -570,6 +570,10 @@ The workflow then:
    generated release notes. A tag with a suffix (`v0.2.0rc1`, `v0.2.0-beta.1`)
    makes a pre-release.
 
+If pushing the tag does not start the workflow, run it by hand: on GitHub,
+Actions, Release, Run workflow, and choose the **tag** (not a branch) in "Use
+workflow from". From a branch it stops at the first check.
+
 If a step fails nothing is published; delete the tag (`git push origin :v0.2.0`,
 `git tag -d v0.2.0`), fix, and tag again. The workflow's own checks of a tag
 can be run before pushing it: `python .github/scripts/check_version.py v0.2.0`.

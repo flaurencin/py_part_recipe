@@ -5,14 +5,19 @@
 # The tag must be the version of pyproject.toml. The release gets the wheel, the
 # sdist, offline sets of wheels (see the README), and their checksums.
 #
+# If the push of a tag did not start it, run it by hand: Actions > Release >
+# Run workflow, and choose the tag (not a branch) in "Use workflow from".
+#
 # The tests are not run here: they need loop devices and root, run them before
 # tagging.
 name: Release
 
 on:
   push:
+    # every tag starting with v: the first job checks that it is the version
     tags:
-      - "v[0-9]+.[0-9]+.[0-9]+*"
+      - "v*"
+  workflow_dispatch:
 
 permissions:
   contents: read
