@@ -319,12 +319,16 @@ class RaidVolume(PartitionBasedVolume):
         self.spares = [part_devices[idx] for idx in self.spare_indices]
 
     def _gen_build_command(self) -> str:
-        command = "mdadm --create {raid_dev_name} --force --level={level} --raid-devices={nb_devs}"
+        command = (
+            "mdadm --create {raid_dev_name} --run --force --level={level}"
+            " --metadata={metadata} --bitmap=internal --raid-devices={nb_devs}"
+        )
         spares_cmd_switch = "--spare-devices={nb_spares}"
         devs = "{devs}"
         format_params = {
             "raid_dev_name": self.raid_dev_name,
             "level": self.raid_level,
+            "metadata": self.meta_data_version,
             "nb_devs": len(self.devices),
             "devs": " ".join([dev.path for dev in self.devices]),
         }
@@ -339,14 +343,10 @@ class RaidVolume(PartitionBasedVolume):
         return final_command
 
     def build(self):
-        if self.meta_data_version in ("1.0", "1", "1.2"):
-            send_chars = "y\n"
-        else:
-            send_chars = ""
         command = self._gen_build_command()
         subprocess_command = gen_cmd_for_subprocess(command)
         result: subprocess.CompletedProcess = subprocess.run(
-            subprocess_command, capture_output=True, input=send_chars.encode("utf-8")
+            subprocess_command, capture_output=True, stdin=subprocess.DEVNULL
         )
         if result.returncode != 0:
             raise subprocess.SubprocessError(
